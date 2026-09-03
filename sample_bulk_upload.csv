@@ -1,0 +1,5 @@
+camera_identifier,camera_name,latitude,longitude,department,camera_type,ownership,connectivity_status,retention_days,storage_type,capacity_tb,health_status,installation_date,last_ping,stream_endpoint
+POL-SRT-0001,Ring Road Junction Cam,21.1702,72.8311,Police,PTZ,Government,Online,30,cloud,2.5,Operational,2022-03-10,,
+POL-SRT-0002,Railway Station Gate 2,21.1959,72.8302,Police,ANPR,Government,Online,60,hybrid,4.0,Operational,2019-06-01,,
+TRN-SRT-0001,Bus Depot Entry,21.1865,72.8311,Transport,Dome,PPP,Degraded,15,local,1.0,Maintenance Required,2021-11-20,,
+MUN-SRT-0001,Municipal Market Square,21.1750,72.8400,Municipal,Fixed Bullet,Government,Offline,30,local,1.5,Defective,2017-01-05,,
