@@ -1,0 +1,17 @@
+# --- cctv_registry/backend (Python/FastAPI) ---
+cctv_registry/backend/.venv/
+cctv_registry/backend/.testing/
+cctv_registry/backend/__pycache__/
+cctv_registry/backend/**/__pycache__/
+cctv_registry/backend/*.pyc
+cctv_registry/backend/.env
+
+# --- cctv_registry/frontend (React/Vite) ---
+cctv_registry/frontend/node_modules/
+cctv_registry/frontend/dist/
+cctv_registry/frontend/.env
+
+# --- OS / editor noise (repo-wide) ---
+.DS_Store
+*.swp
+*.swo
