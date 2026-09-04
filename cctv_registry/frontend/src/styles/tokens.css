@@ -1,0 +1,55 @@
+:root {
+  /* Base palette — cool, low-saturation, built for a map-first control surface */
+  --ink: #151a22;
+  --ink-soft: #4b5566;
+  --surface: #ffffff;
+  --surface-sunken: #f4f6f8;
+  --border: #dde1e7;
+  --border-strong: #c2c9d3;
+
+  /* Single accent — used sparingly for primary actions & selection state */
+  --accent: #2f4b7c;
+  --accent-soft: #e8edf6;
+
+  /* Status colors — carry real meaning (camera health), never decorative */
+  --status-active: #1e7a4c;
+  --status-active-bg: #e6f3ec;
+  --status-maintenance: #b3720f;
+  --status-maintenance-bg: #fbf1de;
+  --status-offline: #b13a2e;
+  --status-offline-bg: #faeae8;
+
+  --font-ui: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  --shadow-panel: 0 1px 2px rgba(21, 26, 34, 0.06), 0 4px 12px rgba(21, 26, 34, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background: var(--surface-sunken);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, select {
+  font-family: inherit;
+}
