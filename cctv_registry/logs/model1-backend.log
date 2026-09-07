@@ -1,1 +1,0 @@
-start_all.sh: /home/joe/Workspace/GujPol/cctv_registry/model1/backend/.testing/bin/uvicorn: /home/joe/Workspace/GujPol/cctv_registry/backend/.testing/bin/python3.12: bad interpreter: No such file or directory
