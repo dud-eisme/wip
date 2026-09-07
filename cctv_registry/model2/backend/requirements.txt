@@ -1,0 +1,29 @@
+# --- Core backend (same stack as Model 1) ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+SQLAlchemy==2.0.35
+psycopg[binary]>=3.2.3
+pydantic[email]==2.9.2
+pydantic-settings==2.5.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# --- Video feed relay (lightweight, always required for the streaming feature) ---
+# Version pins left loose (>=) since this is tied to your installed Python/OS
+# combo — tested working with opencv-python-headless 4.13 + numpy 2.4 on
+# Python 3.13 as well as older combos on Python 3.11.
+opencv-python-headless>=4.10.0
+numpy>=1.26.4
+
+# --- ANPR pipeline (HEAVY — install separately, see README) ---
+# These are intentionally NOT auto-installed with the line above because
+# they are large (PyTorch alone is 700MB+) and not every environment needs
+# ANPR active on day one. The app starts and every other feature works
+# without them; only /api/v2/anpr/jobs will return a clear error until
+# these are installed.
+#
+#   pip install ultralytics==8.3.0 easyocr==1.7.2
+#
+# ultralytics pulls in torch automatically.

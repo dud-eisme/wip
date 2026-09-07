@@ -1,0 +1,8 @@
+npm notice run cctv-registry-frontend@0.1.0 dev
+npm notice run vite
+
+  VITE v7.3.6  ready in 77 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://172.18.0.1:5173/
+  ➜  Network: http://10.206.157.235:5173/
