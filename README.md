@@ -85,9 +85,12 @@ Computed live from PostGIS queries, not pre-aggregated:
 ### Frontend
 React + Leaflet GIS map with marker clustering, status-colored pins
 (active/maintenance/offline), live search and filtering (department,
-camera type, health status), a gap-analysis summary panel, CSV export of
-the current filtered view, and modals for manual onboarding and bulk
-upload with a per-row success/failure breakdown.
+camera type, health status), a gap-analysis summary panel (including the
+backend's plain-language headline and recommended actions, not just raw
+numbers), CSV export, modals for manual onboarding and bulk upload with a
+per-row success/failure breakdown, and per-camera edit/delete. A real
+login screen calls the backend's actual login endpoint — no hardcoded
+auto-login.
 
 ### Key endpoints
 ```
@@ -340,16 +343,22 @@ setup has already been done once per model.
 
 ## Known limitations (stated honestly, not hidden)
 
-- **Model 1**: no camera edit/delete UI yet (backend endpoints exist);
-  frontend auto-logs in with a hardcoded test account rather than a real
-  login form.
+- **Model 1**: camera edit/delete UI ✓ done; real login screen ✓ done.
+  Remaining: no password reset flow; editing a camera's GIS location isn't
+  exposed in the edit form yet, even though the backend supports it.
 - **Model 2**: default YOLO weights don't actually detect plates (see
-  ANPR section above); ANPR jobs run in a plain background thread, not a
-  task queue, so there's no retry/queueing at production scale; snapshot
-  storage has no automated retention/cleanup yet.
-- **Model 3**: adapter sync state and Model 1's cached service-account
-  token are in-memory only, reset on restart — fine for demo scale, would
-  need externalizing for a multi-process production deployment.
+  ANPR section above) — a real fix requires plate-specific trained
+  weights, not a code change; ANPR jobs run in a plain background thread,
+  not a task queue, so there's no retry/queueing at production scale.
+  Snapshot retention ✓ has a standalone cleanup script now
+  (`cleanup_snapshots.py`, run manually/via cron, never auto-runs).
+- **Model 3**: auth failures now surface specific, actionable error
+  messages (connection vs. wrong credentials vs. malformed response) and
+  a startup check flags an unconfigured/placeholder service account
+  immediately — see `test_model1_connection.py` for standalone debugging.
+  Still true: adapter sync state and the cached service-account token are
+  in-memory only, reset on restart — fine for demo scale, would need
+  externalizing for a multi-process production deployment.
 - **All three**: `create_all_tables()` is used for schema setup instead of
   proper migrations (Alembic) — acceptable for a hackathon PoC, called out
   explicitly as a pre-production gap.
