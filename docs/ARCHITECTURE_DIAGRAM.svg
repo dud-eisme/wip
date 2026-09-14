@@ -20,7 +20,7 @@
 
   <!-- Model 1: Registry & GIS -->
   <rect x="50" y="80" width="380" height="320" class="model1" rx="8"/>
-  <text x="240" y="110" class="subtitle" text-anchor="middle">Model 1: CCTV Registry & GIS Foundation</text>
+  <text x="240" y="110" class="subtitle" text-anchor="middle">Model 1: CCTV Registry &amp; GIS Foundation</text>
   
   <rect x="70" y="130" width="340" height="50" class="component" rx="4"/>
   <text x="240" y="155" class="text" text-anchor="middle">PostgreSQL + PostGIS Database</text>
@@ -37,11 +37,11 @@
   <text x="70" y="330" class="label">Key Features:</text>
   <text x="90" y="348" class="text">• Department-scoped RBAC</text>
   <text x="90" y="363" class="text">• GIS mapping with PostGIS</text>
-  <text x="90" y="378" class="text">• Gap analysis & analytics</text>
+  <text x="90" y="378" class="text">• Gap analysis &amp; analytics</text>
 
   <!-- Model 2: Live Feed & ANPR -->
   <rect x="510" y="80" width="380" height="320" class="model2" rx="8"/>
-  <text x="700" y="110" class="subtitle" text-anchor="middle">Model 2: Live Feed Relay & ANPR</text>
+  <text x="700" y="110" class="subtitle" text-anchor="middle">Model 2: Live Feed Relay &amp; ANPR</text>
 
   <rect x="530" y="130" width="340" height="50" class="component" rx="4"/>
   <text x="700" y="155" class="text" text-anchor="middle">FastAPI Backend (Port 8001)</text>
@@ -58,11 +58,11 @@
   <text x="530" y="330" class="label">Key Features:</text>
   <text x="550" y="348" class="text">• Live MJPEG streaming</text>
   <text x="550" y="363" class="text">• ANPR pipeline (50-source stress tested)</text>
-  <text x="550" y="378" class="text">• Snapshot storage & retention</text>
+  <text x="550" y="378" class="text">• Snapshot storage &amp; retention</text>
 
   <!-- Model 3: Federation & Middleware -->
   <rect x="970" y="80" width="380" height="320" class="model3" rx="8"/>
-  <text x="1160" y="110" class="subtitle" text-anchor="middle">Model 3: VMS Federation & Middleware</text>
+  <text x="1160" y="110" class="subtitle" text-anchor="middle">Model 3: VMS Federation &amp; Middleware</text>
 
   <rect x="990" y="130" width="340" height="50" class="component" rx="4"/>
   <text x="1160" y="155" class="text" text-anchor="middle">FastAPI Backend (Port 8002)</text>
@@ -84,7 +84,7 @@
   <!-- Data Flow Section -->
   <line x1="50" y1="430" x2="1350" y2="430" class="connector" stroke-dasharray="5,5"/>
   
-  <text x="700" y="465" class="subtitle" text-anchor="middle">Data Flow & Integration Points</text>
+  <text x="700" y="465" class="subtitle" text-anchor="middle">Data Flow &amp; Integration Points</text>
 
   <!-- Model 1 to Model 2 Connection -->
   <line x1="240" y1="400" x2="240" y2="480" class="connector"/>
@@ -125,7 +125,7 @@
   <text x="720" y="680" class="text">• Graceful scene cut handling; state recovery on discontinuity</text>
 
   <!-- Footer -->
-  <text x="700" y="720" class="subtitle" text-anchor="middle">Deployment & Operations</text>
+  <text x="700" y="720" class="subtitle" text-anchor="middle">Deployment &amp; Operations</text>
   
   <rect x="50" y="740" width="1300" height="130" class="box" rx="4"/>
   <text x="70" y="760" class="label">Security: TLS/HTTPS • Rate Limiting • Audit Logging • CORS Hardening</text>

@@ -16,10 +16,10 @@
   </defs>
 
   <!-- Title -->
-  <text x="700" y="35" class="title" text-anchor="middle">Workflow & Integration Diagram - Data Flow Architecture</text>
+  <text x="700" y="35" class="title" text-anchor="middle">Workflow &amp; Integration Diagram - Data Flow Architecture</text>
 
   <!-- User & Authentication Flow (Top) -->
-  <text x="700" y="70" class="subtitle" text-anchor="middle">1. Authentication & User Onboarding</text>
+  <text x="700" y="70" class="subtitle" text-anchor="middle">1. Authentication &amp; User Onboarding</text>
 
   <rect x="80" y="90" width="120" height="60" class="process" rx="4"/>
   <text x="140" y="115" class="text" text-anchor="middle">User Login</text>
@@ -81,7 +81,7 @@
   <text x="310" y="425" class="text" text-anchor="middle">Cameras DB</text>
 
   <!-- Model 2 Integration -->
-  <text x="700" y="70" class="subtitle" text-anchor="middle">2. Live Feed & ANPR Pipeline</text>
+  <text x="700" y="70" class="subtitle" text-anchor="middle">2. Live Feed &amp; ANPR Pipeline</text>
 
   <rect x="600" y="90" width="120" height="60" class="process" rx="4"/>
   <text x="660" y="115" class="text" text-anchor="middle">Source Reg.</text>
@@ -137,7 +137,7 @@
   <text x="1040" y="505" class="text" text-anchor="middle">+ snapshots</text>
 
   <!-- Model 3 Federation -->
-  <text x="700" y="570" class="subtitle" text-anchor="middle">3. VMS Federation & Correlation (Model 3)</text>
+  <text x="700" y="570" class="subtitle" text-anchor="middle">3. VMS Federation &amp; Correlation (Model 3)</text>
 
   <line x1="310" y1="440" x2="310" y2="610" class="connector"/>
   <polygon points="310,620 305,610 315,610" class="arrow"/>
@@ -190,7 +190,7 @@
   <text x="590" y="780" class="text" text-anchor="middle">• Reliability</text>
 
   <!-- Error Handling & Monitoring -->
-  <text x="700" y="570" class="subtitle" text-anchor="middle">4. Error Handling & Monitoring</text>
+  <text x="700" y="570" class="subtitle" text-anchor="middle">4. Error Handling &amp; Monitoring</text>
 
   <rect x="50" y="710" width="140" height="60" class="decision" rx="4"/>
   <text x="120" y="735" class="text" text-anchor="middle">Stream</text>
