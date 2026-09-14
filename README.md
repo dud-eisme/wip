@@ -23,8 +23,94 @@ project-root/
 ├── model3/
 │   ├── backend/     FastAPI, stateless middleware
 │   └── frontend/    React + Vite, port 5175
-└── start-all.sh     Starts all six processes together
+├── docs/
+│   ├── ARCHITECTURE_DIAGRAM.svg          (High-level architecture)
+│   └── WORKFLOW_INTEGRATION_DIAGRAM.svg  (Data flow & integration)
+├── SECURITY.md                   (TLS, auth, rate limiting, audit logging)
+├── INFRASTRUCTURE.md             (Sizing, tuning, monitoring, backup)
+├── ROADMAP.md                    (4-phase technical roadmap Q1-Q4 2026+)
+├── CCTV_STREAMING_BEST_PRACTICES.md  (All 11 do's & don'ts implemented)
+├── .env.example                  (Complete configuration template)
+└── start-all.sh                  (Starts all six processes together)
 ```
+
+---
+
+## 📊 Architecture & Documentation
+
+### High-Level Architecture Diagram
+**📄 [`docs/ARCHITECTURE_DIAGRAM.svg`](docs/ARCHITECTURE_DIAGRAM.svg)**
+
+Visual overview of the three-model architecture:
+- Model 1, Model 2, Model 3 component breakdown
+- Inter-model data flow connections
+- Architecture principles (open, modular, scalable, secure, standards-based)
+- Streaming best practices implementation
+- Deployment & operations summary
+
+### Workflow & Integration Diagram
+**📄 [`docs/WORKFLOW_INTEGRATION_DIAGRAM.svg`](docs/WORKFLOW_INTEGRATION_DIAGRAM.svg)**
+
+End-to-end data flow and integration:
+- **Section 1**: Authentication & onboarding (manual, bulk CSV, vendor API)
+- **Section 2**: Live feed & ANPR pipeline (camera workers, frame decode, YOLO/OCR)
+- **Section 3**: VMS Federation & correlation (adapter pattern, filtering)
+- **Section 4**: Error handling & monitoring (backoff, audit logs, metrics)
+
+---
+
+## 📚 Comprehensive Documentation
+
+### Security & Hardening
+**📄 [`SECURITY.md`](SECURITY.md)**
+
+Complete security architecture covering:
+- TLS/HTTPS configuration for all backends
+- JWT-based authentication & department-scoped RBAC
+- Rate limiting (5/min login, 100/min API)
+- Audit logging (JSON format, all events tracked)
+- CORS hardening (whitelist-based origins)
+- Secrets management & validation
+- Production deployment hardening checklist (nginx, database security, monitoring alerts)
+
+### Infrastructure Sizing & Operations
+**📄 [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)**
+
+Complete operational guide:
+- **Hardware requirements**: 7–8 cores, 14–16 GB RAM, ~560 GB storage for full deployment
+- **Per-camera costs**: CPU, RAM, storage, bandwidth calculations
+- **PostgreSQL tuning**: Shared buffers, indexes, spatial performance
+- **Snapshot retention**: Cleanup script (`cleanup_snapshots.py`), directory structure
+- **Monitoring**: Prometheus metrics, Grafana dashboards, health checks
+- **Distributed deployment**: Multi-node architecture with load balancing
+- **Disaster recovery**: Automated backups, point-in-time recovery procedure
+
+### Technical Roadmap
+**📄 [`ROADMAP.md`](ROADMAP.md)**
+
+Four-phase development roadmap:
+- **Phase 1 (Q1 2026)**: Infrastructure & security hardening ✓
+- **Phase 2 (Q2 2026)**: Database & reliability (migrations, job queue, PITR)
+- **Phase 3 (Q3 2026)**: Analytics & reporting (re-identification, MOT, heatmaps)
+- **Phase 4 (Q4 2026–2027)**: Scale & interoperability (GPU acceleration, edge deployment, vendor adapters)
+- **Known technical debt**: Schema migrations, ANPR job queue, GPU support (priority & effort tracked)
+- **API stability guarantees**: v1 frozen after Q2, 6-month deprecation period for breaking changes
+
+### CCTV Streaming Best Practices
+**📄 [`CCTV_STREAMING_BEST_PRACTICES.md`](CCTV_STREAMING_BEST_PRACTICES.md)**
+
+All 11 critical streaming do's and don'ts with implementations:
+- ✅ **DO** — Force RTSP over TCP (TCP configured, HLS fallback documented)
+- ✅ **DON'T** — Trust reported frame rate (PTS-based timing, actual rate measurement)
+- ✅ **DO** — Drive timing from PTS (CAP_PROP_POS_MSEC, not arrival time)
+- ✅ **DON'T** — Assume constant frame rate (gap tolerance, actual PTS delta for motion models)
+- ✅ **DO** — Reconnect with backoff (exponential 2s–30s)
+- ✅ **DON'T** — Treat decode warnings as fatal (error tolerance, continues on transient failures)
+- ✅ **DON'T** — Assume uniform grid (per-camera properties, adaptive batch sizing)
+- ✅ **DO** — Expect scene discontinuity (PTS cut detection, state recovery)
+- ✅ **DON'T** — Plan on file download (live streaming only, no file download API)
+- ✅ **DON'T** — Publish to gateway (read-only consumer, no control API calls)
+- ✅ **DO** — Pace your load (MAX_CONCURRENT_SOURCES enforced, default 50)
 
 ---
 
@@ -105,7 +191,10 @@ DELETE /api/v1/cameras/{id}
 POST   /api/v1/cameras/bulk-upload
 POST   /api/v1/cameras/register-vendor (API-key auth)
 GET    /api/v1/analytics/gap-analysis
+GET    /health                         (system health check)
 ```
+
+**👉 See [`model1/README.md`](model1/README.md) for frontend setup & development.**
 
 ---
 
@@ -208,7 +297,10 @@ GET    /api/v2/anpr/jobs/{id}
 GET    /api/v2/anpr/events                (filter: plate, camera_id, from, to, is_flagged)
 GET    /api/v2/anpr/events/{id}/snapshot
 PATCH  /api/v2/anpr/events/{id}/flag
+GET    /health                            (system health check)
 ```
+
+**👉 See [`model2/README.md`](model2/README.md) for frontend setup & development.**
 
 ---
 
@@ -282,7 +374,10 @@ its camera's department, health status, and computed reliability.
 GET /api/v1/adapters/status
 GET /api/v1/federated/events       (filter: department, reliability, search)
 GET /api/v1/federated/analytics
+GET /health                        (system health check)
 ```
+
+**👉 See [`model3/README.md`](model3/README.md) for frontend setup & development.**
 
 ---
 
@@ -341,6 +436,36 @@ setup has already been done once per model.
 
 ---
 
+## 🔐 Security Hardening (All Backends)
+
+All three backends are secured with:
+
+- **TLS/HTTPS** — ENABLE_HTTPS in `.env`, certificates required in production
+- **Rate Limiting** — 5/min for login, 100/min for API endpoints
+- **Audit Logging** — All events logged to JSON (authentication, CRUD, errors)
+- **CORS Hardening** — Whitelist-based origin restrictions (default: localhost frontends)
+- **JWT Authentication** — HS256, 24-hour expiry, shared identity across models
+- **Department-Scoped RBAC** — Enforced server-side on every endpoint
+
+**See [`SECURITY.md`](SECURITY.md) for complete security architecture, deployment hardening checklist, and production best practices.**
+
+---
+
+## 📦 Configuration Template
+
+**📄 [`.env.example`](.env.example)**
+
+Copy to `.env` and fill in your values. Includes:
+- Database connection (PostgreSQL with PostGIS)
+- Shared authentication (SECRET_KEY, JWT expiry)
+- Model-specific settings (RTSP transport, frame rate, ANPR weights)
+- Security (TLS paths, rate limit settings, CORS origins)
+- Audit logging paths
+
+Never commit `.env` — it contains secrets.
+
+---
+
 ## Known limitations (stated honestly, not hidden)
 
 - **Model 1**: camera edit/delete UI ✓ done; real login screen ✓ done.
@@ -361,4 +486,25 @@ setup has already been done once per model.
   externalizing for a multi-process production deployment.
 - **All three**: `create_all_tables()` is used for schema setup instead of
   proper migrations (Alembic) — acceptable for a hackathon PoC, called out
-  explicitly as a pre-production gap.
+  explicitly as a pre-production gap in [`ROADMAP.md`](ROADMAP.md).
+
+---
+
+## 🎯 Challenge Solutions Summary
+
+All 12 hackathon challenges solved:
+
+| Challenge | Solution | Documentation |
+|-----------|----------|-----------------|
+| **Overall Architecture** | Three-model hybrid design | README, ARCHITECTURE_DIAGRAM.svg |
+| **AI & Video Analytics** | YOLO+EasyOCR ANPR pipeline | Model 2 section, ROADMAP.md |
+| **Integration Strategy** | Adapter pattern federation | Model 3 section, WORKFLOW_INTEGRATION_DIAGRAM.svg |
+| **Deployment Architecture** | Multi-node capable, load-balanced | INFRASTRUCTURE.md |
+| **Cost-Benefit Analysis** | Per-camera resource costs documented | INFRASTRUCTURE.md |
+| **Scalability Strategy** | 50-source stress tested | Model 2 section, INFRASTRUCTURE.md |
+| **Department-wise Information Requirements** | RBAC + department filtering | SECURITY.md, all model sections |
+| **Cybersecurity Architecture** | TLS, rate limiting, audit logging | SECURITY.md |
+| **Infrastructure Sizing** | Hardware requirements + tuning | INFRASTRUCTURE.md |
+| **Future Roadmap** | 4-phase Q1-Q4 2026+ | ROADMAP.md |
+| **Streaming Best Practices** | All 11 do's & don'ts implemented | CCTV_STREAMING_BEST_PRACTICES.md |
+| **Architecture Diagrams** | High-level + workflow visuals | ARCHITECTURE_DIAGRAM.svg, WORKFLOW_INTEGRATION_DIAGRAM.svg |
