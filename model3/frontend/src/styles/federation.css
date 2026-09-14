@@ -1,0 +1,176 @@
+/* ---- Connector status panel ---- */
+.connector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.connector-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.connector-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.connector-card__name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.connector-card__source {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+
+.connector-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.connector-status-badge--connected {
+  background: var(--status-active-bg);
+  color: var(--status-active);
+}
+
+.connector-status-badge--error {
+  background: var(--status-offline-bg);
+  color: var(--status-offline);
+}
+
+.connector-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.connector-card__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+/* ---- Analytics summary ---- */
+.analytics-summary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.analytics-summary__headline {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+
+.analytics-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.analytics-stat__value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.analytics-stat__label {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+/* ---- Federated events table ---- */
+.events-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.events-panel__header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.events-panel__header h2 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.events-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.events-table th {
+  text-align: left;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+
+.events-table td {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.events-table tr:last-child td {
+  border-bottom: none;
+}
+
+.plate-chip {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  display: inline-block;
+}
+
+.reliability-badge {
+  display: inline-flex;
+  padding: 2px 9px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.reliability-badge--high {
+  background: var(--status-active-bg);
+  color: var(--status-active);
+}
+
+.reliability-badge--medium {
+  background: var(--status-maintenance-bg);
+  color: var(--status-maintenance);
+}
+
+.reliability-badge--low {
+  background: var(--status-offline-bg);
+  color: var(--status-offline);
+}
