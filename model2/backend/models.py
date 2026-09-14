@@ -59,8 +59,16 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
-    department = Column(Enum(DepartmentEnum, name="department_enum"), nullable=False, index=True)
-    role = Column(Enum(UserRoleEnum, name="user_role_enum"), nullable=False, default=UserRoleEnum.VIEWER)
+    department = Column(
+        Enum(DepartmentEnum, name="department_enum", values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
+        index=True,
+    )
+    role = Column(
+        Enum(UserRoleEnum, name="user_role_enum", values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
+        default=UserRoleEnum.VIEWER,
+    )
     is_active = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -81,7 +89,9 @@ class CameraRef(Base):
     id = Column(UUID(as_uuid=True), primary_key=True)
     camera_identifier = Column(String)
     camera_name = Column(String)
-    department = Column(Enum(DepartmentEnum, name="department_enum"))
+    department = Column(
+        Enum(DepartmentEnum, name="department_enum", values_callable=lambda enum_cls: [e.value for e in enum_cls])
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +117,10 @@ class CameraSource(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     camera_id = Column(UUID(as_uuid=True), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     source_name = Column(String, nullable=False)
-    source_type = Column(Enum(SourceTypeEnum, name="source_type_enum"), nullable=False)
+    source_type = Column(
+        Enum(SourceTypeEnum, name="source_type_enum", values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
+    )
     source_url = Column(String, nullable=False)  # rtsp://..., http://..., or local file path
     is_active = Column(Boolean, default=True, nullable=False, index=True)
 
@@ -132,7 +145,12 @@ class AnprJob(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source_id = Column(UUID(as_uuid=True), ForeignKey("camera_sources.id", ondelete="SET NULL"), nullable=True)
     camera_id = Column(UUID(as_uuid=True), ForeignKey("cameras.id", ondelete="SET NULL"), nullable=True)
-    status = Column(Enum(JobStatusEnum, name="job_status_enum"), nullable=False, default=JobStatusEnum.QUEUED, index=True)
+    status = Column(
+        Enum(JobStatusEnum, name="job_status_enum", values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        nullable=False,
+        default=JobStatusEnum.QUEUED,
+        index=True,
+    )
     processed_frames = Column(Integer, default=0)
     events_found = Column(Integer, default=0)
     error_message = Column(Text, nullable=True)
