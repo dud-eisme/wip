@@ -54,9 +54,10 @@ start_backend() {
     echo "WARNING: $model_name backend has no .env — it will likely fail to connect/auth correctly."
   fi
 
-  echo "Starting $model_name backend on port $port..."
+  echo "Starting $model_name backend on port $port (HTTP, TLS forced off)..."
   (
     cd "$dir" && \
+    export ENABLE_HTTPS=false && \
     exec ./.testing/bin/uvicorn main:app --reload --port "$port"
   ) > "$LOG_DIR/${model_name}-backend.log" 2>&1 &
 
@@ -112,9 +113,12 @@ echo ""
 echo "============================================================"
 echo " All available services starting. Give them ~5-10s to come up."
 echo ""
-echo "   Model 1 — Registry     : http://localhost:5173  (API: :8000/docs)"
-echo "   Model 2 — Viewer/ANPR  : http://localhost:5174  (API: :8001/docs)"
-echo "   Model 3 — Federation   : http://localhost:5175  (API: :8002/docs)"
+echo "   Model 1 — Registry     : http://localhost:5173  (API: http://localhost:8000/docs)"
+echo "   Model 2 — Viewer/ANPR  : http://localhost:5174  (API: http://localhost:8001/docs)"
+echo "   Model 3 — Federation   : http://localhost:5175  (API: http://localhost:8002/docs)"
+echo ""
+echo " All backends are forced to plain HTTP (ENABLE_HTTPS=false) regardless"
+echo " of what each model's own .env says, to keep local dev consistent."
 echo ""
 echo " Logs are streaming to: $LOG_DIR/"
 echo " Press Ctrl+C to stop everything."

@@ -118,7 +118,14 @@ def detect_plates_in_frame(frame: "np.ndarray", min_confidence: float = 0.4) -> 
             if not cleaned:
                 continue
 
-            combined_conf = round((conf + ocr_conf) / 2, 4)
+            # EasyOCR returns numpy.float32/float64 for ocr_conf. Cast both
+            # operands to plain Python float before combining, so
+            # combined_conf is never a numpy scalar — psycopg2's adaptation
+            # of numpy floats has been unreliable across numpy versions and
+            # can end up embedding the value's repr() as literal SQL text
+            # instead of a bound parameter (seen as errors like
+            # 'schema "np" does not exist').
+            combined_conf = float(round((float(conf) + float(ocr_conf)) / 2, 4))
             detections.append(
                 PlateDetection(plate_text=cleaned, confidence=combined_conf, bbox=(x1, y1, x2, y2))
             )

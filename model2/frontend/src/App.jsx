@@ -5,6 +5,16 @@ import RegisterSourceModal from './components/RegisterSourceModal'
 import { login } from './api/auth'
 import { getSources, getWorkersStatus, getEvents, getRegistryCameras, USE_MOCK } from './api/viewer'
 
+// Model 2 has no login of its own, so it needs a real Model 1 account to
+// authenticate as. Reads from env so this can point at a real registered
+// service/test account without editing source — see .env.example.
+// Falls back to the template placeholder only so the app doesn't crash if
+// the env var is missing; that placeholder will NOT actually authenticate
+// against Model 1 (it must be registered there first via
+// /api/v1/auth/register-as-admin).
+const LOGIN_EMAIL = import.meta.env.VITE_MODEL2_TEST_EMAIL || 'user@example.com'
+const LOGIN_PASSWORD = import.meta.env.VITE_MODEL2_TEST_PASSWORD || 'password'
+
 export default function App() {
   const [view, setView] = useState('wall') // 'wall' | 'events'
   const [token, setToken] = useState(null)
@@ -31,7 +41,7 @@ export default function App() {
       setToken('mock-token')
       return
     }
-    login('user@example.com', 'password')
+    login(LOGIN_EMAIL, LOGIN_PASSWORD)
       .then(setToken)
       .catch((err) => setAuthError(err.message))
   }, [])

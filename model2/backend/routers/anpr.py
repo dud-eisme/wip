@@ -9,8 +9,10 @@ demo/spec-scale project dependency-light. For real production volume,
 swap `threading.Thread` here for a proper task queue — the DB writes and
 job-status contract stay identical either way.
 """
+import logging
 import os
 import threading
+import traceback
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -34,6 +36,7 @@ import anpr_pipeline
 import storage
 
 router = APIRouter(prefix="/api/v2/anpr", tags=["ANPR"])
+logger = logging.getLogger("cctv_model2.anpr")
 
 ANPR_FRAME_SKIP_DEFAULT = int(os.getenv("ANPR_FRAME_SKIP", "5"))
 
@@ -113,11 +116,21 @@ def _run_anpr_job(job_id: uuid.UUID, source_url: str, camera_id: Optional[uuid.U
         db.commit()
 
     except Exception as exc:  # noqa: BLE001 — surfacing any pipeline error onto the job row
+        # Full traceback goes to the server console — str(exc) alone can be
+        # empty for some exception types (bare AssertionError, some cv2
+        # errors), which previously left error_message blank with no way
+        # to tell what actually broke.
+        logger.exception("ANPR job %s failed", job_id)
         db.rollback()
         job = db.query(AnprJob).filter(AnprJob.id == job_id).first()
         if job:
             job.status = JobStatusEnum.FAILED
-            job.error_message = str(exc)
+            if str(exc):
+                job.error_message = f"{type(exc).__name__}: {exc}"
+            else:
+                job.error_message = (
+                    f"{type(exc).__name__} (no message — see server console for full traceback)"
+                )
             job.completed_at = datetime.now(timezone.utc)
             db.commit()
     finally:

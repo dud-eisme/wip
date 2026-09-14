@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User, UserRoleEnum, DepartmentEnum
 
-SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
+JWT_PUBLIC_KEY = os.getenv("JWT_PUBLIC_KEY", "insecure-dev-key-change-me")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 # tokenUrl points at Model 1's login endpoint purely so Swagger's "Authorize"
@@ -44,7 +44,7 @@ def _decode_token_to_user(token: str, db: Session) -> User:
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, JWT_PUBLIC_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
