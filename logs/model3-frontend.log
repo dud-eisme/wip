@@ -1,9 +1,0 @@
-npm notice run model3-federation-frontend@0.1.0 dev
-npm notice run vite
-
-  VITE v7.3.6  ready in 79 ms
-
-  ➜  Local:   http://localhost:5175/
-  ➜  Network: http://10.203.254.55:5175/
-  ➜  Network: http://172.19.0.1:5175/
-  ➜  Network: http://172.18.0.1:5175/

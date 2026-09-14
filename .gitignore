@@ -1,28 +1,28 @@
 # --- Backend (Model 1, Model 2, Model 3 - Python/FastAPI) ---
-cctv_registry/model[1-3]/backend/.venv/
-cctv_registry/model[1-3]/backend/venv/
-cctv_registry/model[1-3]/backend/.testing/
-cctv_registry/model[1-3]/backend/**/__pycache__/
-cctv_registry/model[1-3]/backend/**/*.py[cod]
-cctv_registry/model[1-3]/backend/.env
-cctv_registry/model[1-3]/backend/.env.*
-!cctv_registry/model[1-3]/backend/.env.example
+model[1-3]/backend/.venv/
+model[1-3]/backend/venv/
+model[1-3]/backend/.testing/
+model[1-3]/backend/**/__pycache__/
+model[1-3]/backend/**/*.py[cod]
+model[1-3]/backend/.env
+model[1-3]/backend/.env.*
+!model[1-3]/backend/.env.example
 
 # --- Model 2 specific artifacts (Video/ML storage) ---
-cctv_registry/model2/backend/media/
-cctv_registry/model2/backend/anpr_snapshots/
-cctv_registry/model2/backend/*.pt
+model2/backend/media/
+model2/backend/anpr_snapshots/
+model2/backend/*.pt
 
 # --- Frontend (Model 1, Model 2, Model 3 - React/Vite) ---
-cctv_registry/model[1-3]/frontend/node_modules/
-cctv_registry/model[1-3]/frontend/.vite/
-cctv_registry/model[1-3]/frontend/dist/
-cctv_registry/model[1-3]/frontend/.env
-cctv_registry/model[1-3]/frontend/.env.*
-!cctv_registry/model[1-3]/frontend/.env.example
+model[1-3]/frontend/node_modules/
+model[1-3]/frontend/.vite/
+model[1-3]/frontend/dist/
+model[1-3]/frontend/.env
+model[1-3]/frontend/.env.*
+!model[1-3]/frontend/.env.example
 
 # --- logs don't need to be pushed ---
-cctv_registry/logs/
+logs/
 
 # --- OS / editor noise (repo-wide) ---
 .DS_Store
