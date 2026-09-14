@@ -23,6 +23,16 @@ model[1-3]/frontend/.env.*
 
 # --- logs don't need to be pushed ---
 logs/
+*.log
+audit.log
+
+# --- SSL/TLS certificates (NEVER commit) ---
+ssl/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
 
 # --- OS / editor noise (repo-wide) ---
 .DS_Store
@@ -31,3 +41,16 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+
+# --- Secrets and sensitive files ---
+.env.production
+.env.production.local
+secret*.txt
+private*.key
+secrets/
+
+# --- Production runtime ---
+pgdata/
+*.db
+*.sqlite
+*.sqlite3
