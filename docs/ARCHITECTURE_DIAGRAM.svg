@@ -1,0 +1,141 @@
+<svg viewBox="0 0 1400 920" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .box { fill: #f0f4f8; stroke: #2c5aa0; stroke-width: 2; }
+      .title { font-size: 24px; font-weight: bold; fill: #1a3a52; }
+      .subtitle { font-size: 14px; fill: #2c5aa0; font-weight: bold; }
+      .text { font-size: 12px; fill: #333; }
+      .component { fill: #e8f4f8; stroke: #0099cc; stroke-width: 2; }
+      .model1 { fill: #fff4e6; stroke: #ff8c00; stroke-width: 2; }
+      .model2 { fill: #e6f3ff; stroke: #0066cc; stroke-width: 2; }
+      .model3 { fill: #f0e6ff; stroke: #6600cc; stroke-width: 2; }
+      .connector { stroke: #666; stroke-width: 2; fill: none; }
+      .arrow { stroke: #666; stroke-width: 2; fill: #666; }
+      .label { font-size: 11px; fill: #555; font-weight: bold; }
+      .flow-box { fill: #ffffff; stroke: #b0c4de; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="700" y="40" class="title" text-anchor="middle">Unified CCTV Intelligence Platform - High-Level Architecture</text>
+
+  <!-- Model 1: Registry & GIS -->
+  <rect x="50" y="70" width="380" height="320" class="model1" rx="8"/>
+  <text x="240" y="98" class="subtitle" text-anchor="middle">Model 1: CCTV Registry &amp; GIS Foundation</text>
+  
+  <rect x="70" y="118" width="340" height="50" class="component" rx="4"/>
+  <text x="240" y="141" class="text" text-anchor="middle">PostgreSQL + PostGIS Database</text>
+  <text x="240" y="158" class="text" text-anchor="middle">Cameras, Users, Department RBAC</text>
+
+  <rect x="70" y="180" width="340" height="50" class="component" rx="4"/>
+  <text x="240" y="203" class="text" text-anchor="middle">FastAPI Backend (Port 8000)</text>
+  <text x="240" y="220" class="text" text-anchor="middle">Authentication, Camera CRUD, Gap Analysis</text>
+
+  <rect x="70" y="242" width="340" height="50" class="component" rx="4"/>
+  <text x="240" y="265" class="text" text-anchor="middle">React Frontend (Port 5173)</text>
+  <text x="240" y="282" class="text" text-anchor="middle">GIS Map, Camera List, Onboarding</text>
+
+  <text x="70" y="315" class="label">Key Features:</text>
+  <text x="90" y="333" class="text">• Department-scoped RBAC</text>
+  <text x="90" y="350" class="text">• GIS mapping with PostGIS</text>
+  <text x="90" y="367" class="text">• Gap analysis &amp; analytics</text>
+
+  <!-- Model 2: Live Feed & ANPR -->
+  <rect x="510" y="70" width="380" height="320" class="model2" rx="8"/>
+  <text x="700" y="98" class="subtitle" text-anchor="middle">Model 2: Live Feed Relay &amp; ANPR</text>
+
+  <rect x="530" y="118" width="340" height="50" class="component" rx="4"/>
+  <text x="700" y="141" class="text" text-anchor="middle">FastAPI Backend (Port 8001)</text>
+  <text x="700" y="158" class="text" text-anchor="middle">RTSP/MJPEG Stream Relay, YOLO+EasyOCR</text>
+
+  <rect x="530" y="180" width="340" height="50" class="component" rx="4"/>
+  <text x="700" y="203" class="text" text-anchor="middle">Camera Workers (Threads)</text>
+  <text x="700" y="220" class="text" text-anchor="middle">Frame Decode, PTS Timing, Reconnection</text>
+
+  <rect x="530" y="242" width="340" height="50" class="component" rx="4"/>
+  <text x="700" y="265" class="text" text-anchor="middle">React Frontend (Port 5174)</text>
+  <text x="700" y="282" class="text" text-anchor="middle">Video Wall, ANPR Events, Plate Search</text>
+
+  <text x="530" y="315" class="label">Key Features:</text>
+  <text x="550" y="333" class="text">• Live MJPEG streaming</text>
+  <text x="550" y="350" class="text">• ANPR pipeline (50-source stress tested)</text>
+  <text x="550" y="367" class="text">• Snapshot storage &amp; retention</text>
+
+  <!-- Model 3: Federation & Middleware -->
+  <rect x="970" y="70" width="380" height="320" class="model3" rx="8"/>
+  <text x="1160" y="98" class="subtitle" text-anchor="middle">Model 3: VMS Federation &amp; Middleware</text>
+
+  <rect x="990" y="118" width="340" height="50" class="component" rx="4"/>
+  <text x="1160" y="141" class="text" text-anchor="middle">FastAPI Backend (Port 8002)</text>
+  <text x="1160" y="158" class="text" text-anchor="middle">Adapter Pattern, Service Account Auth</text>
+
+  <rect x="990" y="180" width="340" height="50" class="component" rx="4"/>
+  <text x="1160" y="203" class="text" text-anchor="middle">Correlation Engine</text>
+  <text x="1160" y="220" class="text" text-anchor="middle">Join Events + Camera Health, Reliability</text>
+
+  <rect x="990" y="242" width="340" height="50" class="component" rx="4"/>
+  <text x="1160" y="265" class="text" text-anchor="middle">React Frontend (Port 5175)</text>
+  <text x="1160" y="282" class="text" text-anchor="middle">Adapter Status, Analytics Summary</text>
+
+  <text x="990" y="315" class="label">Key Features:</text>
+  <text x="1010" y="333" class="text">• Graceful federation degradation</text>
+  <text x="1010" y="350" class="text">• Extensible adapter framework</text>
+  <text x="1010" y="367" class="text">• Department + reliability filtering</text>
+
+  <!-- Inter-Service Integration Section -->
+  <line x1="50" y1="405" x2="1350" y2="405" class="connector" stroke-dasharray="4,4"/>
+
+  <!-- Model 1 -> Model 2 Link -->
+  <line x1="430" y1="205" x2="510" y2="205" class="connector"/>
+  <polygon points="510,205 500,200 500,210" class="arrow"/>
+  <rect x="435" y="188" width="70" height="18" class="flow-box" rx="2"/>
+  <text x="470" y="201" class="label" text-anchor="middle">Shared Auth/DB</text>
+
+  <!-- Bus/Integration Data Flow Paths -->
+  <path d="M 240 390 L 240 450 L 1040 450 L 1040 390" class="connector"/>
+  <polygon points="1040,390 1035,400 1045,400" class="arrow"/>
+  <text x="640" y="443" class="label" text-anchor="middle">GET /cameras (JWT Service Account Auth)</text>
+
+  <path d="M 700 390 L 700 480 L 1180 480 L 1180 390" class="connector"/>
+  <polygon points="1180,390 1175,400 1185,400" class="arrow"/>
+  <text x="940" y="473" class="label" text-anchor="middle">GET /anpr/events (Event Stream Integration)</text>
+
+  <!-- Architecture Principles -->
+  <text x="700" y="520" class="subtitle" text-anchor="middle">Architecture Principles</text>
+
+  <rect x="50" y="535" width="640" height="125" class="box" rx="4"/>
+  <text x="70" y="555" class="label">✓ Modular, Scalable &amp; Standards-Based Design</text>
+  <text x="70" y="573" class="text">• Three decoupled FastAPI microservices operating on isolated ports</text>
+  <text x="70" y="588" class="text">• Vendor-neutral adapter pattern to interface external VMS platforms</text>
+  <text x="70" y="603" class="text">• Granular, department-scoped RBAC consistently applied</text>
+  <text x="70" y="618" class="text">• Centralized PostGIS database for native spatial indexing &amp; queries</text>
+
+  <rect x="710" y="535" width="640" height="125" class="box" rx="4"/>
+  <text x="730" y="555" class="label">✓ High-Throughput Media Pipeline</text>
+  <text x="730" y="573" class="text">• Standardized RTSP/TCP transmission to guarantee frame transport</text>
+  <text x="730" y="588" class="text">• PTS hardware clock synchronization for precise event-frame association</text>
+  <text x="730" y="603" class="text">• Exponential backoff reconnection policies (2s–30s interval ceiling)</text>
+  <text x="730" y="618" class="text">• Adaptive batch handling for YOLO object detection &amp; OCR pipelines</text>
+
+  <!-- Footer / Operational Specs -->
+  <text x="700" y="685" class="subtitle" text-anchor="middle">Deployment &amp; Operational Blueprint</text>
+  
+  <rect x="50" y="700" width="1300" height="180" class="box" rx="4"/>
+  <text x="70" y="722" class="label">Security &amp; Auth:</text>
+  <text x="200" y="722" class="text">Enforced TLS/HTTPS endpoints, rate-limiting policy, multi-tenant CORS rules, audit trails.</text>
+
+  <text x="70" y="744" class="label">Compute &amp; Capacity:</text>
+  <text x="200" y="744" class="text">Base allocation: 8 Cores, 16 GB RAM, ~560 GB SSD storage tier (scaled per camera pipeline density).</text>
+
+  <text x="70" y="766" class="label">Persistence Layer:</text>
+  <text x="200" y="766" class="text">PostgreSQL 13+ with PostGIS, explicit indexing, pooled async DB drivers (SQLAlchemy/asyncpg).</text>
+
+  <text x="70" y="788" class="label">Observability:</text>
+  <text x="200" y="788" class="text">Prometheus metrics scrapers, real-time Grafana telemetry, structured JSON log streaming.</text>
+
+  <text x="70" y="810" class="label">Data Protection:</text>
+  <text x="200" y="810" class="text">Automated daily DB dumps, 30-day point-in-time recovery, automatic snapshot lifecycle retention rules.</text>
+
+  <text x="70" y="832" class="label">Phased Rollout:</text>
+  <text x="200" y="832" class="text">Phase 1: Core Infra &amp; Auth → Phase 2: Live Relays &amp; ANPR → Phase 3: Federation Engine → Phase 4: High Availability Scale.</text>
+</svg>
