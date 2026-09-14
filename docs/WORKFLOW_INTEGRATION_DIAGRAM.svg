@@ -3,235 +3,217 @@
     <style>
       .box { fill: #f0f4f8; stroke: #2c5aa0; stroke-width: 2; }
       .title { font-size: 24px; font-weight: bold; fill: #1a3a52; }
-      .subtitle { font-size: 14px; fill: #2c5aa0; font-weight: bold; }
+      .subtitle { font-size: 15px; fill: #2c5aa0; font-weight: bold; }
+      .section-bg { fill: #fcfcfc; stroke: #dcdcdc; stroke-width: 1; stroke-dasharray: 4,4; }
       .text { font-size: 11px; fill: #333; }
       .process { fill: #e8f4f8; stroke: #0099cc; stroke-width: 2; }
       .decision { fill: #fff4e6; stroke: #ff8c00; stroke-width: 2; }
       .storage { fill: #f0e6ff; stroke: #6600cc; stroke-width: 2; }
       .connector { stroke: #666; stroke-width: 2; fill: none; }
       .arrow { stroke: #666; stroke-width: 2; fill: #666; }
-      .label { font-size: 10px; fill: #666; font-weight: bold; }
-      .flow-label { font-size: 9px; fill: #0066cc; font-style: italic; }
+      .label { font-size: 11px; fill: #444; font-weight: bold; }
+      .flow-label { font-size: 10px; fill: #0066cc; font-style: italic; }
     </style>
   </defs>
 
   <!-- Title -->
   <text x="700" y="35" class="title" text-anchor="middle">Workflow &amp; Integration Diagram - Data Flow Architecture</text>
 
-  <!-- User & Authentication Flow (Top) -->
-  <text x="700" y="70" class="subtitle" text-anchor="middle">1. Authentication &amp; User Onboarding</text>
+  <!-- SECTION 1: AUTH & ONBOARDING -->
+  <rect x="30" y="60" width="410" height="420" class="section-bg" rx="6"/>
+  <text x="235" y="85" class="subtitle" text-anchor="middle">1. Authentication &amp; User Onboarding</text>
 
-  <rect x="80" y="90" width="120" height="60" class="process" rx="4"/>
-  <text x="140" y="115" class="text" text-anchor="middle">User Login</text>
-  <text x="140" y="130" class="text" text-anchor="middle">(Model 1)</text>
+  <!-- User Login -> Auth DB -> JWT Token -->
+  <rect x="50" y="105" width="100" height="50" class="process" rx="4"/>
+  <text x="100" y="128" class="text" text-anchor="middle">User Login</text>
+  <text x="100" y="142" class="text" text-anchor="middle">(Model 1)</text>
 
-  <line x1="200" y1="120" x2="280" y2="120" class="connector"/>
-  <polygon points="290,120 280,115 280,125" class="arrow"/>
+  <line x1="150" y1="130" x2="180" y2="130" class="connector"/>
+  <polygon points="190,130 180,125 180,135" class="arrow"/>
 
-  <rect x="280" y="90" width="120" height="60" class="storage" rx="4"/>
-  <text x="340" y="115" class="text" text-anchor="middle">PostgreSQL</text>
-  <text x="340" y="130" class="text" text-anchor="middle">users table</text>
+  <rect x="190" y="105" width="100" height="50" class="storage" rx="4"/>
+  <text x="240" y="128" class="text" text-anchor="middle">PostgreSQL</text>
+  <text x="240" y="142" class="text" text-anchor="middle">users table</text>
 
-  <line x1="400" y1="120" x2="480" y2="120" class="connector"/>
-  <polygon points="490,120 480,115 480,125" class="arrow"/>
-  <text x="435" y="105" class="flow-label">JWT issued</text>
+  <line x1="290" y1="130" x2="320" y2="130" class="connector"/>
+  <polygon points="330,130 320,125 320,135" class="arrow"/>
 
-  <rect x="480" y="90" width="120" height="60" class="process" rx="4"/>
-  <text x="540" y="115" class="text" text-anchor="middle">Token Valid</text>
-  <text x="540" y="130" class="text" text-anchor="middle">(All Models)</text>
+  <rect x="330" y="105" width="90" height="50" class="process" rx="4"/>
+  <text x="375" y="128" class="text" text-anchor="middle">Token Valid</text>
+  <text x="375" y="142" class="text" text-anchor="middle">(JWT Auth)</text>
 
-  <!-- Camera Onboarding Branch -->
-  <line x1="140" y1="150" x2="140" y2="190" class="connector"/>
-  <polygon points="140,200 135,190 145,190" class="arrow"/>
+  <!-- Camera Onboarding Paths -->
+  <line x1="100" y1="155" x2="100" y2="185" class="connector"/>
+  <polygon points="100,195 95,185 105,185" class="arrow"/>
 
-  <rect x="60" y="200" width="160" height="50" class="decision" rx="4"/>
-  <text x="140" y="225" class="text" text-anchor="middle">Onboarding Path?</text>
+  <rect x="40" y="195" width="120" height="45" class="decision" rx="4"/>
+  <text x="100" y="222" class="text" text-anchor="middle">Onboarding Path?</text>
 
-  <!-- Manual Entry -->
-  <line x1="60" y1="230" x2="20" y2="280" class="connector"/>
-  <polygon points="15,285 20,275 25,285" class="arrow"/>
-  <text x="35" y="250" class="flow-label">Manual</text>
+  <!-- Paths: Manual, Bulk CSV, Webhook API -->
+  <line x1="60" y1="240" x2="60" y2="270" class="connector"/>
+  <polygon points="60,280 55,270 65,270" class="arrow"/>
+  <text x="35" y="260" class="flow-label">Manual</text>
+  <rect x="20" y="280" width="80" height="40" class="process" rx="4"/>
+  <text x="60" y="304" class="text" text-anchor="middle">Form Entry</text>
 
-  <rect x="0" y="280" width="100" height="50" class="process" rx="4"/>
-  <text x="50" y="305" class="text" text-anchor="middle">Form Entry</text>
+  <line x1="100" y1="240" x2="100" y2="270" class="connector"/>
+  <polygon points="100,280 95,270 105,270" class="arrow"/>
+  <text x="105" y="260" class="flow-label">Bulk</text>
+  <rect x="110" y="280" width="80" height="40" class="process" rx="4"/>
+  <text x="150" y="304" class="text" text-anchor="middle">CSV Parse</text>
 
-  <!-- Bulk Upload -->
-  <line x1="140" y1="200" x2="140" y2="180" class="connector"/>
-  <polygon points="140,170 135,180 145,180" class="arrow"/>
-  <text x="160" y="190" class="flow-label">Bulk CSV</text>
+  <line x1="140" y1="240" x2="220" y2="270" class="connector"/>
+  <polygon points="225,275 215,270 220,260" class="arrow"/>
+  <text x="180" y="250" class="flow-label">API Key</text>
+  <rect x="200" y="280" width="90" height="40" class="process" rx="4"/>
+  <text x="245" y="304" class="text" text-anchor="middle">Webhook Auth</text>
 
-  <rect x="100" y="140" width="80" height="40" class="process" rx="4"/>
-  <text x="140" y="165" class="text" text-anchor="middle">CSV Parse</text>
+  <!-- Converge to Model 1 Cameras DB -->
+  <line x1="60" y1="320" x2="60" y2="350" class="connector"/>
+  <line x1="150" y1="320" x2="150" y2="350" class="connector"/>
+  <line x1="245" y1="320" x2="245" y2="350" class="connector"/>
+  <line x1="60" y1="350" x2="245" y2="350" class="connector"/>
 
-  <!-- Vendor API -->
-  <line x1="220" y1="230" x2="280" y2="280" class="connector"/>
-  <polygon points="285,290 275,285 280,275" class="arrow"/>
-  <text x="240" y="250" class="flow-label">API Key</text>
+  <line x1="150" y1="350" x2="150" y2="385" class="connector"/>
+  <polygon points="150,395 145,385 155,385" class="arrow"/>
 
-  <rect x="260" y="280" width="100" height="50" class="process" rx="4"/>
-  <text x="310" y="305" class="text" text-anchor="middle">Webhook Auth</text>
+  <rect x="90" y="395" width="120" height="50" class="storage" rx="4"/>
+  <text x="150" y="418" class="text" text-anchor="middle">Model 1 DB</text>
+  <text x="150" y="432" class="text" text-anchor="middle">(Cameras &amp; Spatial)</text>
 
-  <!-- All paths converge to Model 1 storage -->
-  <line x1="50" y1="330" x2="310" y2="330" class="connector"/>
-  <line x1="310" y1="330" x2="310" y2="380" class="connector"/>
-  <polygon points="310,390 305,380 315,380" class="arrow"/>
+  <!-- SECTION 2: LIVE FEED & ANPR PIPELINE -->
+  <rect x="460" y="60" width="910" height="420" class="section-bg" rx="6"/>
+  <text x="915" y="85" class="subtitle" text-anchor="middle">2. Live Feed &amp; ANPR Pipeline</text>
 
-  <rect x="260" y="390" width="100" height="50" class="storage" rx="4"/>
-  <text x="310" y="410" class="text" text-anchor="middle">Model 1</text>
-  <text x="310" y="425" class="text" text-anchor="middle">Cameras DB</text>
+  <rect x="480" y="105" width="110" height="50" class="process" rx="4"/>
+  <text x="535" y="128" class="text" text-anchor="middle">Source Reg.</text>
+  <text x="535" y="142" class="text" text-anchor="middle">(Model 2)</text>
 
-  <!-- Model 2 Integration -->
-  <text x="700" y="70" class="subtitle" text-anchor="middle">2. Live Feed &amp; ANPR Pipeline</text>
+  <line x1="590" y1="130" x2="620" y2="130" class="connector"/>
+  <polygon points="630,130 620,125 620,135" class="arrow"/>
 
-  <rect x="600" y="90" width="120" height="60" class="process" rx="4"/>
-  <text x="660" y="115" class="text" text-anchor="middle">Source Reg.</text>
-  <text x="660" y="130" class="text" text-anchor="middle">(Model 2)</text>
+  <rect x="630" y="105" width="120" height="50" class="process" rx="4"/>
+  <text x="690" y="128" class="text" text-anchor="middle">Camera Worker</text>
+  <text x="690" y="142" class="text" text-anchor="middle">(RTSP/TCP Decode)</text>
 
-  <line x1="600" y1="120" x2="520" y2="120" class="connector"/>
-  <polygon points="510,120 520,115 520,125" class="arrow"/>
-  <text x="550" y="105" class="flow-label">camera_id + RTSP URL</text>
+  <line x1="750" y1="130" x2="780" y2="130" class="connector"/>
+  <polygon points="790,130 780,125 780,135" class="arrow"/>
 
-  <!-- Camera Worker Thread -->
-  <line x1="660" y1="150" x2="660" y2="210" class="connector"/>
-  <polygon points="660,220 655,210 665,210" class="arrow"/>
+  <rect x="790" y="105" width="110" height="50" class="process" rx="4"/>
+  <text x="845" y="128" class="text" text-anchor="middle">Frame Decode</text>
+  <text x="845" y="142" class="text" text-anchor="middle">(PTS Timing)</text>
 
-  <rect x="600" y="220" width="120" height="60" class="process" rx="4"/>
-  <text x="660" y="240" class="text" text-anchor="middle">Camera Worker</text>
-  <text x="660" y="255" class="text" text-anchor="middle">(Thread/Process)</text>
+  <!-- MJPEG Branch -->
+  <line x1="900" y1="130" x2="940" y2="130" class="connector"/>
+  <polygon points="950,130 940,125 940,135" class="arrow"/>
+  
+  <rect x="950" y="105" width="110" height="50" class="process" rx="4"/>
+  <text x="1005" y="134" class="text" text-anchor="middle">MJPEG Relay</text>
 
-  <line x1="660" y1="280" x2="660" y2="340" class="connector"/>
-  <polygon points="660,350 655,340 665,340" class="arrow"/>
+  <!-- ANPR Branch -->
+  <line x1="845" y1="155" x2="845" y2="200" class="connector"/>
+  <polygon points="845,210 840,200 850,200" class="arrow"/>
+  <text x="855" y="185" class="flow-label">Frame Queue</text>
 
-  <rect x="600" y="350" width="120" height="60" class="process" rx="4"/>
-  <text x="660" y="370" class="text" text-anchor="middle">Frame Decode</text>
-  <text x="660" y="385" class="text" text-anchor="middle">(PTS Timing)</text>
+  <rect x="780" y="210" width="130" height="50" class="process" rx="4"/>
+  <text x="845" y="233" class="text" text-anchor="middle">YOLO Object Detect</text>
+  <text x="845" y="247" class="text" text-anchor="middle">(Plate Localization)</text>
 
-  <line x1="720" y1="380" x2="800" y2="380" class="connector"/>
-  <polygon points="810,380 800,375 800,385" class="arrow"/>
-  <text x="750" y="370" class="flow-label">MJPEG stream</text>
+  <line x1="910" y1="235" x2="940" y2="235" class="connector"/>
+  <polygon points="950,235 940,230 940,240" class="arrow"/>
 
-  <rect x="800" y="350" width="120" height="60" class="process" rx="4"/>
-  <text x="860" y="375" class="text" text-anchor="middle">MJPEG Relay</text>
+  <rect x="950" y="210" width="120" height="50" class="process" rx="4"/>
+  <text x="1010" y="233" class="text" text-anchor="middle">EasyOCR</text>
+  <text x="1010" y="247" class="text" text-anchor="middle">(Text Extraction)</text>
 
-  <!-- ANPR Pipeline Branch -->
-  <line x1="660" y1="410" x2="660" y2="460" class="connector"/>
-  <polygon points="660,470 655,460 665,460" class="arrow"/>
-  <text x="680" y="445" class="flow-label">Optional: run ANPR</text>
+  <line x1="1070" y1="235" x2="1100" y2="235" class="connector"/>
+  <polygon points="1110,235 1100,230 1100,240" class="arrow"/>
 
-  <rect x="600" y="470" width="120" height="60" class="process" rx="4"/>
-  <text x="660" y="490" class="text" text-anchor="middle">YOLO Detection</text>
-  <text x="660" y="505" class="text" text-anchor="middle">(Object Detect)</text>
+  <rect x="1110" y="210" width="130" height="50" class="storage" rx="4"/>
+  <text x="1175" y="233" class="text" text-anchor="middle">anpr_events</text>
+  <text x="1175" y="247" class="text" text-anchor="middle">+ Snapshots DB</text>
 
-  <line x1="720" y1="500" x2="800" y2="500" class="connector"/>
-  <polygon points="810,500 800,495 800,505" class="arrow"/>
+  <!-- SECTION 3: VMS FEDERATION & MIDDLEWARE -->
+  <rect x="30" y="500" width="1340" height="230" class="section-bg" rx="6"/>
+  <text x="700" y="525" class="subtitle" text-anchor="middle">3. VMS Federation &amp; Correlation (Model 3)</text>
 
-  <rect x="800" y="470" width="120" height="60" class="process" rx="4"/>
-  <text x="860" y="490" class="text" text-anchor="middle">EasyOCR</text>
-  <text x="860" y="505" class="text" text-anchor="middle">(Text Extract)</text>
+  <!-- Connections from Model 1 & Model 2 into Model 3 -->
+  <line x1="150" y1="445" x2="150" y2="560" class="connector"/>
+  <polygon points="150,570 145,560 155,560" class="arrow"/>
+  <text x="160" y="480" class="flow-label">GET /cameras</text>
 
-  <line x1="920" y1="500" x2="980" y2="500" class="connector"/>
-  <polygon points="990,500 980,495 980,505" class="arrow"/>
+  <line x1="1175" y1="260" x2="1175" y2="560" class="connector"/>
+  <polygon points="1175,570 1170,560 1180,560" class="arrow"/>
+  <text x="1100" y="480" class="flow-label">GET /anpr/events</text>
 
-  <rect x="980" y="470" width="120" height="60" class="storage" rx="4"/>
-  <text x="1040" y="490" class="text" text-anchor="middle">anpr_events</text>
-  <text x="1040" y="505" class="text" text-anchor="middle">+ snapshots</text>
+  <rect x="80" y="570" width="140" height="50" class="process" rx="4"/>
+  <text x="150" y="599" class="text" text-anchor="middle">Model 1 Adapter</text>
 
-  <!-- Model 3 Federation -->
-  <text x="700" y="570" class="subtitle" text-anchor="middle">3. VMS Federation &amp; Correlation (Model 3)</text>
+  <rect x="1105" y="570" width="140" height="50" class="process" rx="4"/>
+  <text x="1175" y="599" class="text" text-anchor="middle">Model 2 Adapter</text>
 
-  <line x1="310" y1="440" x2="310" y2="610" class="connector"/>
-  <polygon points="310,620 305,610 315,610" class="arrow"/>
-  <text x="280" y="520" class="flow-label">GET /cameras</text>
+  <line x1="220" y1="595" x2="350" y2="595" class="connector"/>
+  <polygon points="360,595 350,590 350,600" class="arrow"/>
 
-  <line x1="1040" y1="530" x2="1040" y2="610" class="connector"/>
-  <polygon points="1040,620 1035,610 1045,610" class="arrow"/>
-  <text x="1060" y="570" class="flow-label">GET /anpr/events</text>
+  <line x1="1105" y1="595" x2="970" y2="595" class="connector"/>
+  <polygon points="960,595 970,590 970,600" class="arrow"/>
 
-  <rect x="280" y="620" width="140" height="50" class="process" rx="4"/>
-  <text x="350" y="645" class="text" text-anchor="middle">Model 1 Adapter</text>
+  <!-- Correlation Core -->
+  <rect x="360" y="565" width="600" height="60" class="process" rx="4"/>
+  <text x="660" y="590" class="label" text-anchor="middle">Correlation Engine &amp; Aggregator</text>
+  <text x="660" y="610" class="text" text-anchor="middle">Joins camera metadata + health status + spatial coordinates + ANPR event streams</text>
 
-  <line x1="420" y1="645" x2="520" y2="645" class="connector"/>
-  <polygon points="530,645 520,640 520,650" class="arrow"/>
+  <line x1="660" y1="625" x2="660" y2="650" class="connector"/>
+  <polygon points="660,660 655,650 665,650" class="arrow"/>
 
-  <rect x="520" y="620" width="140" height="50" class="process" rx="4"/>
-  <text x="590" y="645" class="text" text-anchor="middle">Correlation Engine</text>
+  <rect x="560" y="660" width="200" height="50" class="storage" rx="4"/>
+  <text x="660" y="683" class="text" text-anchor="middle">Correlated Event Feed</text>
+  <text x="660" y="697" class="text" text-anchor="middle">(Dept + Health + Reliability Filtered)</text>
 
-  <line x1="660" y1="645" x2="760" y2="645" class="connector"/>
-  <polygon points="770,645 760,640 760,650" class="arrow"/>
+  <!-- SECTION 4: ERROR HANDLING & MONITORING -->
+  <rect x="30" y="750" width="1340" height="170" class="section-bg" rx="6"/>
+  <text x="700" y="775" class="subtitle" text-anchor="middle">4. Resilience, Monitoring &amp; Logging</text>
 
-  <rect x="760" y="620" width="140" height="50" class="process" rx="4"/>
-  <text x="830" y="645" class="text" text-anchor="middle">Model 2 Adapter</text>
+  <!-- Stream Reconnection Loop -->
+  <rect x="60" y="800" width="140" height="50" class="decision" rx="4"/>
+  <text x="130" y="823" class="text" text-anchor="middle">Stream Interrupted?</text>
+  <text x="130" y="837" class="text" text-anchor="middle">(RTSP Loss / Drop)</text>
 
-  <line x1="900" y1="645" x2="970" y2="645" class="connector"/>
-  <polygon points="980,645 970,640 970,650" class="arrow"/>
+  <line x1="200" y1="825" x2="250" y2="825" class="connector"/>
+  <polygon points="260,825 250,820 250,830" class="arrow"/>
+  <text x="225" y="815" class="flow-label">YES</text>
 
-  <line x1="1040" y1="620" x2="1040" y2="700" class="connector"/>
-  <polygon points="1040,710 1035,700 1045,700" class="arrow"/>
+  <rect x="260" y="800" width="150" height="50" class="process" rx="4"/>
+  <text x="335" y="823" class="text" text-anchor="middle">Exponential Backoff</text>
+  <text x="335" y="837" class="text" text-anchor="middle">(2s to 30s Retry Loop)</text>
 
-  <!-- Correlation Output -->
-  <rect x="960" y="710" width="160" height="60" class="storage" rx="4"/>
-  <text x="1040" y="735" class="text" text-anchor="middle">Correlated Events</text>
-  <text x="1040" y="750" class="text" text-anchor="middle">(dept + health + reliability)</text>
+  <!-- Logging / Audit / Metrics -->
+  <rect x="520" y="800" width="160" height="50" class="storage" rx="4"/>
+  <text x="600" y="823" class="text" text-anchor="middle">Audit Logging</text>
+  <text x="600" y="837" class="text" text-anchor="middle">(JSON Files, Multi-Tenant)</text>
 
-  <!-- Final Output -->
-  <line x1="1040" y1="770" x2="1040" y2="820" class="connector"/>
-  <polygon points="1040,830 1035,820 1045,820" class="arrow"/>
+  <rect x="720" y="800" width="160" height="50" class="storage" rx="4"/>
+  <text x="800" y="823" class="text" text-anchor="middle">Prometheus Metrics</text>
+  <text x="800" y="837" class="text" text-anchor="middle">(CPU, Frames, Drops, Latency)</text>
 
-  <rect x="960" y="830" width="160" height="50" class="process" rx="4"/>
-  <text x="1040" y="855" class="text" text-anchor="middle">Frontend Display</text>
+  <rect x="920" y="800" width="160" height="50" class="process" rx="4"/>
+  <text x="1000" y="823" class="text" text-anchor="middle">Grafana Dashboards</text>
+  <text x="1000" y="837" class="text" text-anchor="middle">(Real-time Telemetry)</text>
 
-  <!-- Decision Point for Filtering -->
-  <line x1="590" y1="670" x2="590" y2="720" class="connector"/>
-  <polygon points="590,730 585,720 595,720" class="arrow"/>
+  <!-- LEGEND -->
+  <rect x="30" y="940" width="1340" height="40" class="box" rx="4"/>
+  <text x="50" y="964" class="label">Legend:</text>
+  
+  <rect x="120" y="952" width="15" height="15" class="process" rx="2"/>
+  <text x="142" y="964" class="text">Microservice / Process</text>
 
-  <rect x="520" y="730" width="140" height="60" class="decision" rx="4"/>
-  <text x="590" y="750" class="text" text-anchor="middle">Filter by:</text>
-  <text x="590" y="765" class="text" text-anchor="middle">• Department</text>
-  <text x="590" y="780" class="text" text-anchor="middle">• Reliability</text>
+  <rect x="300" y="952" width="15" height="15" class="storage" rx="2"/>
+  <text x="322" y="964" class="text">Database / State Storage</text>
 
-  <!-- Error Handling & Monitoring -->
-  <text x="700" y="570" class="subtitle" text-anchor="middle">4. Error Handling &amp; Monitoring</text>
+  <rect x="490" y="952" width="15" height="15" class="decision" rx="2"/>
+  <text x="512" y="964" class="text">Decision / Pipeline Check</text>
 
-  <rect x="50" y="710" width="140" height="60" class="decision" rx="4"/>
-  <text x="120" y="735" class="text" text-anchor="middle">Stream</text>
-  <text x="120" y="750" class="text" text-anchor="middle">Disconnected?</text>
-
-  <line x1="100" y1="770" x2="60" y2="820" class="connector"/>
-  <polygon points="55,830 60,820 50,820" class="arrow"/>
-  <text x="70" y="800" class="flow-label">YES</text>
-
-  <rect x="10" y="830" width="100" height="50" class="process" rx="4"/>
-  <text x="60" y="850" class="text" text-anchor="middle">Backoff</text>
-  <text x="60" y="865" class="text" text-anchor="middle">Reconnect</text>
-
-  <line x1="190" y1="740" x2="250" y2="820" class="connector"/>
-  <polygon points="255,830 245,825 250,815" class="arrow"/>
-  <text x="210" y="780" class="flow-label">NO</text>
-
-  <rect x="220" y="830" width="100" height="50" class="process" rx="4"/>
-  <text x="270" y="850" class="text" text-anchor="middle">Continue</text>
-  <text x="270" y="865" class="text" text-anchor="middle">Processing</text>
-
-  <!-- Audit & Metrics -->
-  <rect x="350" y="830" width="140" height="50" class="storage" rx="4"/>
-  <text x="420" y="850" class="text" text-anchor="middle">Audit Logs</text>
-  <text x="420" y="865" class="text" text-anchor="middle">(JSON, all models)</text>
-
-  <rect x="530" y="830" width="140" height="50" class="storage" rx="4"/>
-  <text x="600" y="850" class="text" text-anchor="middle">Prometheus Metrics</text>
-  <text x="600" y="865" class="text" text-anchor="middle">(CPU, frames, events)</text>
-
-  <!-- Legend -->
-  <text x="50" y="920" class="label">Legend:</text>
-  <rect x="130" y="905" width="15" height="15" class="process" rx="2"/>
-  <text x="155" y="917" class="text">Process</text>
-
-  <rect x="280" y="905" width="15" height="15" class="storage" rx="2"/>
-  <text x="305" y="917" class="text">Storage/Data</text>
-
-  <rect x="450" y="905" width="15" height="15" class="decision" rx="2"/>
-  <text x="475" y="917" class="text">Decision</text>
-
-  <line x1="600" y1="912" x2="625" y2="912" class="connector"/>
-  <text x="635" y="917" class="text">Data Flow</text>
+  <line x1="680" y1="960" x2="710" y2="960" class="connector"/>
+  <polygon points="720,960 710,955 710,965" class="arrow"/>
+  <text x="730" y="964" class="text">Data / API Call Flow</text>
 </svg>
