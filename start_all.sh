@@ -58,7 +58,7 @@ start_backend() {
   (
     cd "$dir" && \
     export ENABLE_HTTPS=false && \
-    exec ./.testing/bin/uvicorn main:app --reload --port "$port"
+    exec ./.testing/bin/uvicorn main:app --reload --reload-include "./.env" --port "$port"
   ) > "$LOG_DIR/${model_name}-backend.log" 2>&1 &
 
   PIDS+=($!)

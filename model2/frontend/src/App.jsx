@@ -140,6 +140,7 @@ export default function App() {
               workerStatuses={workerStatuses}
               token={token}
               onWorkerChange={handleWorkerChange}
+              onDelete={(sourceId) => setSources((prev) => prev.filter((s) => s.id !== sourceId))}
             />
           </>
         )}

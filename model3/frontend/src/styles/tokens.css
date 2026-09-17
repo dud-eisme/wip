@@ -34,6 +34,19 @@ html, body, #root {
   margin: 0;
 }
 
+/* Locks the document itself so it can NEVER scroll or grow taller than
+   the viewport — .main-area (layout.css) is the ONLY scrollable region
+   in this app. Without this, once content is tall enough (e.g. a
+   100-row events table), it can break through .app-shell's height:100vh
+   box and the whole page starts scrolling instead — which drags the
+   fixed topbar out of view with it, and on some OS/browser combos (e.g.
+   macOS overlay scrollbars) renders with no visible scrollbar at all,
+   looking exactly like scrolling is broken rather than just happening
+   in the wrong container. */
+html, body {
+  overflow: hidden;
+}
+
 body {
   font-family: var(--font-ui);
   color: var(--ink);

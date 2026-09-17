@@ -42,6 +42,16 @@ class CameraSourceCreate(BaseModel):
             raise ValueError("source_url must start with rtsp:// for source_type='rtsp'")
         if source_type == SourceTypeEnum.HTTP and not (v.lower().startswith("http://") or v.lower().startswith("https://")):
             raise ValueError("source_url must start with http:// or https:// for source_type='http'")
+        if source_type == SourceTypeEnum.HLS:
+            is_http = v.lower().startswith("http://") or v.lower().startswith("https://")
+            if not is_http:
+                raise ValueError("source_url must start with http:// or https:// for source_type='hls'")
+            # Loose check, not strict — a valid HLS playlist URL can carry a
+            # query string after the extension (?token=..., signed CDN URLs,
+            # etc.), so this only guards against an obviously-wrong URL
+            # (e.g. someone pasting an rtsp:// or a raw .mp4 link here).
+            if ".m3u8" not in v.lower():
+                raise ValueError("source_url should point at an .m3u8 playlist for source_type='hls'")
         return v
 
 
@@ -75,6 +85,8 @@ class WorkerStatus(BaseModel):
     frames_captured: int
     last_frame_at: Optional[datetime] = None
     last_error: Optional[str] = None
+    corrupted_frames_skipped: int = 0
+    last_blockiness_score: Optional[float] = None
 
 
 class WorkersStatusResponse(BaseModel):
@@ -90,7 +102,16 @@ class WorkersStatusResponse(BaseModel):
 class AnprJobCreate(BaseModel):
     source_id: uuid.UUID = Field(description="A registered camera_sources.id to process.")
     frame_skip: Optional[int] = Field(default=None, ge=1, le=100, description="Override ANPR_FRAME_SKIP for this job.")
-    max_frames: Optional[int] = Field(default=500, ge=1, le=20000, description="Safety cap on frames processed for this job.")
+    max_frames: Optional[int] = Field(default=500, ge=1, le=20000, description="Safety cap on frames processed for this job. Ignored when continuous=true.")
+    continuous: bool = Field(
+        default=False,
+        description=(
+            "If true, ignore max_frames and run until explicitly stopped via "
+            "POST /anpr/jobs/{job_id}/stop — this is what backs a live "
+            "'turn ANPR overlay on/off' toggle rather than a one-shot batch "
+            "analysis run."
+        ),
+    )
 
 
 class AnprJobOut(BaseModel):

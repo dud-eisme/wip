@@ -4,9 +4,10 @@ model[1-3]/backend/venv/
 model[1-3]/backend/.testing/
 model[1-3]/backend/**/__pycache__/
 model[1-3]/backend/**/*.py[cod]
-model[1-3]/backend/.env
-model[1-3]/backend/.env.*
-!model[1-3]/backend/.env.example
+#model[1-3]/backend/.env
+#model[1-3]/backend/.env.*
+#!model[1-3]/backend/.env.example
+# will commit each .env till final env is ready
 
 # --- Model 2 specific artifacts (Video/ML storage) ---
 model2/backend/media/

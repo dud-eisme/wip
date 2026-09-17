@@ -12,12 +12,13 @@ job-status contract stay identical either way.
 import logging
 import os
 import threading
-import traceback
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 import cv2
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -32,6 +33,8 @@ from schemas import (
     EventFlagUpdate,
 )
 from auth import get_current_user, department_scope
+from overlay import latest_detections, OverlayDetection
+from camera_worker import source_manager
 import anpr_pipeline
 import storage
 
@@ -40,38 +43,210 @@ logger = logging.getLogger("cctv_model2.anpr")
 
 ANPR_FRAME_SKIP_DEFAULT = int(os.getenv("ANPR_FRAME_SKIP", "5"))
 
+# How often an RTSP-sourced job polls the CameraWorker's frame buffer for
+# a newly-published frame (see _iter_rtsp_worker_frames below). This is
+# just a responsiveness knob, not a decode throttle — the worker itself
+# controls actual capture rate.
+ANPR_RTSP_POLL_INTERVAL_SECONDS = float(os.getenv("ANPR_RTSP_POLL_INTERVAL_SECONDS", "0.05"))
+
+# A vehicle that dwells in frame is re-detected on every processed frame.
+# At frame_skip=5 on 25fps video that's ~5 identical rows per second for
+# one car. Within this window, a repeat read of the same plate updates
+# the existing event (keeping the best-confidence snapshot) instead of
+# inserting a new one. Set to 0 to log every raw detection.
+ANPR_DEDUP_WINDOW_SECONDS = float(os.getenv("ANPR_DEDUP_WINDOW_SECONDS", "15"))
+
+# Registry of stop signals for currently-running jobs, keyed by job_id.
+# Mirrors SourceManager's _workers dict in camera_worker.py — same need,
+# same shape: a background thread has to be reachable from an HTTP
+# request that didn't start it. Only continuous jobs are ever put here;
+# a normal one-shot job just runs to max_frames/source-end on its own and
+# is never looked up by this dict.
+_job_stop_events: dict[str, threading.Event] = {}
+_job_stop_events_lock = threading.Lock()
+
+# source_id (str) -> job_id of its currently-live continuous job, if any.
+# Guarded by the same lock as _job_stop_events since they're always
+# updated together. This is what makes toggle-ON idempotent and lets the
+# frontend recover toggle state after a refresh (see
+# get_active_continuous_job below) without tracking job_id itself.
+_source_continuous_jobs: dict[str, uuid.UUID] = {}
+
+
+def _plates_match(a: str, b: str) -> bool:
+    """True if two plate reads are the same plate. Exact match, or a
+    single-character difference — OCR jitter on a dwelling vehicle
+    typically flips one ambiguous glyph (8/B, 0/O, 1/I) between frames,
+    and treating those as distinct plates defeats the whole point of
+    de-duplicating."""
+    if a == b:
+        return True
+    if len(a) != len(b):
+        return False
+    return sum(1 for ca, cb in zip(a, b) if ca != cb) == 1
+
+
+# ---------------------------------------------------------------------------
+# Frame sources
+# ---------------------------------------------------------------------------
+#
+# RTSP is a live PUSH source (see camera_worker.py's own extensive comment
+# on this). Whatever reads it has to drain it promptly or the network/NVR
+# starts discarding packets, which corrupts subsequent decodes — the exact
+# "mmco: unref short failure" / "co located POCs unavailable" / "error
+# while decoding MB" errors this pipeline was producing. YOLO+EasyOCR
+# between reads is not prompt, so a job that opened its OWN
+# cv2.VideoCapture on an RTSP source would eventually fall behind no
+# matter how it's tuned.
+#
+# The CameraWorker for this source already solves exactly this problem —
+# it's the one thing draining the camera's RTSP socket at native rate for
+# the live relay. So an ANPR job on an RTSP source never opens a second
+# connection to the camera at all: it pulls whatever frame the worker most
+# recently published. This also means every ANPR job (and the live view)
+# for a camera shares ONE RTSP session to that camera, not one per
+# consumer — the only design that scales past a handful of cameras.
+#
+# FILE/HTTP sources aren't push sources, so they keep the simple,
+# unchanged cap.read()-per-frame approach below.
+
+
+def _iter_rtsp_worker_frames(source_id: uuid.UUID, stop_event: Optional[threading.Event]):
+    """Yields decoded frames pulled from the source's already-running
+    CameraWorker buffer — never opens its own connection to the camera.
+
+    Effectively takes over frame_skip's role for RTSP sources: a new
+    frame only becomes available here as often as the worker publishes
+    one (STREAM_TARGET_FPS, 8fps by default), not at the source's native
+    rate. frame_skip is still applied on top by the caller if an even
+    coarser sample is wanted.
+
+    Raises RuntimeError if the worker isn't running (never started, or
+    stopped externally mid-job) so the caller's existing failure handling
+    can surface a clear reason instead of polling forever for frames that
+    will never arrive.
+    """
+    last_seen_count = -1
+    while True:
+        if stop_event is not None and stop_event.is_set():
+            return
+        worker = source_manager.get(source_id)
+        if worker is None or not worker.is_running:
+            raise RuntimeError(
+                f"Feed-relay worker for source {source_id} is not running "
+                f"(stopped externally, or never started)."
+            )
+        frame_count = worker.buffer.snapshot_status()["frames_captured"]
+        if frame_count and frame_count != last_seen_count:
+            last_seen_count = frame_count
+            jpeg_bytes = worker.buffer.get_frame()
+            if jpeg_bytes is not None:
+                buf = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+                frame = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+                if frame is not None:
+                    yield frame
+                    continue
+        if stop_event is not None:
+            if stop_event.wait(ANPR_RTSP_POLL_INTERVAL_SECONDS):
+                return
+        else:
+            time.sleep(ANPR_RTSP_POLL_INTERVAL_SECONDS)
+
+
+def _iter_file_frames(cap: "cv2.VideoCapture"):
+    """Plain cap.read()-per-frame wrapper for FILE/HTTP sources. Not a
+    push source, so a failed read here is a genuine end-of-clip — nothing
+    to reconnect, unlike the RTSP path above."""
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            return
+        yield frame
+
 
 # ---------------------------------------------------------------------------
 # Job execution (runs in a background thread)
 # ---------------------------------------------------------------------------
 
-def _run_anpr_job(job_id: uuid.UUID, source_url: str, camera_id: Optional[uuid.UUID], frame_skip: int, max_frames: int):
+def _run_anpr_job(
+    job_id: uuid.UUID,
+    source_id: uuid.UUID,
+    source_url: str,
+    camera_id: Optional[uuid.UUID],
+    frame_skip: int,
+    max_frames: int,
+    stop_event: Optional[threading.Event] = None,
+):
     db = SessionLocal()
+    # Cache key for the live-stream overlay. Set once the job row is
+    # loaded; used again in the outer `finally` to evict this source's
+    # boxes however the job ends (completed, failed, or worker stopped).
+    overlay_key: Optional[str] = None
     try:
         job = db.query(AnprJob).filter(AnprJob.id == job_id).first()
         if not job:
             return
+        overlay_key = str(job.source_id)
         job.status = JobStatusEnum.RUNNING
         job.started_at = datetime.now(timezone.utc)
         db.commit()
 
-        cap = cv2.VideoCapture(source_url)
-        if not cap.isOpened():
-            job.status = JobStatusEnum.FAILED
-            job.error_message = f"Could not open source: {source_url}"
-            job.completed_at = datetime.now(timezone.utc)
-            db.commit()
-            return
+        is_rtsp_source = source_url.lower().startswith("rtsp://")
+        cap = None  # only opened for the FILE/HTTP path below
+
+        if is_rtsp_source:
+            # Ensure the shared worker is up — idempotent if it's already
+            # running (e.g. someone's viewing the live feed). This is the
+            # ONLY connection this job will ever make to the camera.
+            try:
+                source_manager.start(source_id, source_url)
+            except RuntimeError as exc:
+                job.status = JobStatusEnum.FAILED
+                job.error_message = str(exc)
+                job.completed_at = datetime.now(timezone.utc)
+                db.commit()
+                return
+            frame_source = _iter_rtsp_worker_frames(source_id, stop_event)
+        else:
+            cap = cv2.VideoCapture(source_url)
+            if not cap.isOpened():
+                job.status = JobStatusEnum.FAILED
+                job.error_message = f"Could not open source: {source_url}"
+                job.completed_at = datetime.now(timezone.utc)
+                db.commit()
+                return
+            frame_source = _iter_file_frames(cap)
 
         frame_number = 0
         processed = 0
         events_found = 0
+        # plate_text -> (monotonic timestamp, the AnprEvent row it created)
+        recent_plates: dict = {}
+        stopped_by_request = False
 
         try:
+            # stop_event is only set for continuous jobs (see AnprJobCreate.
+            # continuous) — a normal batch job passes None here and the
+            # `or stop_event.is_set()` short-circuits away, so behavior for
+            # existing one-shot jobs is unchanged. max_frames is still
+            # respected even in continuous mode as an outer safety cap —
+            # continuous just means "don't stop at max_frames the way a
+            # batch job would", not "no cap ever".
             while processed < max_frames:
-                ok, frame = cap.read()
-                if not ok:
-                    break  # end of clip / stream ended
+                if stop_event is not None and stop_event.is_set():
+                    stopped_by_request = True
+                    break
+
+                frame = next(frame_source, None)
+                if frame is None:
+                    # RTSP: only returns None if stop_event fired while
+                    # waiting for the next published frame — reconnects
+                    # for the underlying camera socket are the worker's
+                    # job, not this loop's (see _iter_rtsp_worker_frames).
+                    # FILE/HTTP: a real end-of-clip.
+                    if is_rtsp_source:
+                        stopped_by_request = True
+                    break
                 frame_number += 1
 
                 if frame_number % frame_skip != 0:
@@ -80,7 +255,50 @@ def _run_anpr_job(job_id: uuid.UUID, source_url: str, camera_id: Optional[uuid.U
                 detections = anpr_pipeline.detect_plates_in_frame(frame)
                 processed += 1
 
+                # Hand the results to the MJPEG relay (routers/stream.py).
+                # Published unconditionally, including the empty list: an
+                # empty set is what makes boxes disappear the moment a
+                # plate leaves frame, instead of lingering until the
+                # DETECTION_TTL_SECONDS window expires.
+                frame_h, frame_w = frame.shape[:2]
+                latest_detections.set(
+                    overlay_key,
+                    [
+                        OverlayDetection(
+                            bbox=d.bbox,
+                            label=d.plate_text,
+                            confidence=d.confidence,
+                        )
+                        for d in detections
+                    ],
+                    frame_size=(frame_w, frame_h),
+                )
+
+                now = time.monotonic()
                 for det in detections:
+                    # --- de-duplication -------------------------------
+                    if ANPR_DEDUP_WINDOW_SECONDS > 0:
+                        recent_key = None
+                        for seen_plate, (seen_at, _) in recent_plates.items():
+                            if now - seen_at > ANPR_DEDUP_WINDOW_SECONDS:
+                                continue
+                            if _plates_match(det.plate_text, seen_plate):
+                                recent_key = seen_plate
+                                break
+
+                        if recent_key is not None:
+                            seen_at, seen_event = recent_plates[recent_key]
+                            # Refresh the window so a car that dwells for
+                            # a minute stays one event, not one per window.
+                            recent_plates[recent_key] = (now, seen_event)
+                            # Keep the best read: if this pass was more
+                            # confident, promote its text/confidence onto
+                            # the existing row rather than discarding it.
+                            if det.confidence > (seen_event.confidence or 0):
+                                seen_event.plate_text = det.plate_text
+                                seen_event.confidence = det.confidence
+                            continue
+
                     event_id = uuid.uuid4()
                     snapshot_path = None
                     x1, y1, x2, y2 = det.bbox
@@ -104,15 +322,31 @@ def _run_anpr_job(job_id: uuid.UUID, source_url: str, camera_id: Optional[uuid.U
                     )
                     db.add(event)
                     events_found += 1
+                    if ANPR_DEDUP_WINDOW_SECONDS > 0:
+                        recent_plates[det.plate_text] = (now, event)
+                        # Bound the map on a long job — anything past the
+                        # window can never match again.
+                        if len(recent_plates) > 256:
+                            recent_plates = {
+                                k: v
+                                for k, v in recent_plates.items()
+                                if now - v[0] <= ANPR_DEDUP_WINDOW_SECONDS
+                            }
 
                 job.processed_frames = processed
                 job.events_found = events_found
                 db.commit()
         finally:
-            cap.release()
+            if cap is not None:
+                cap.release()
 
         job.status = JobStatusEnum.COMPLETED
         job.completed_at = datetime.now(timezone.utc)
+        if stopped_by_request:
+            # Reusing COMPLETED (not adding a new enum value/migration) —
+            # this note is what actually distinguishes "you stopped this"
+            # from "it reached max_frames or the source ended on its own".
+            job.error_message = "Stopped by request."
         db.commit()
 
     except Exception as exc:  # noqa: BLE001 — surfacing any pipeline error onto the job row
@@ -134,6 +368,21 @@ def _run_anpr_job(job_id: uuid.UUID, source_url: str, camera_id: Optional[uuid.U
             job.completed_at = datetime.now(timezone.utc)
             db.commit()
     finally:
+        # Stop the relay drawing this job's last detections over a feed
+        # that nothing is analysing any more. The TTL would expire them
+        # within DETECTION_TTL_SECONDS anyway; this makes it immediate.
+        if overlay_key is not None:
+            latest_detections.clear(overlay_key)
+        with _job_stop_events_lock:
+            _job_stop_events.pop(str(job_id), None)
+            # Only remove the source's active-job pointer if it's still
+            # pointing at THIS job — a stale stop_event.pop is always
+            # safe, but a fast toggle-off/on could have already
+            # registered a new job for this source under the same key by
+            # the time this thread's cleanup runs, and we must not evict
+            # that newer job's pointer.
+            if overlay_key is not None and _source_continuous_jobs.get(overlay_key) == job_id:
+                _source_continuous_jobs.pop(overlay_key, None)
         db.close()
 
 
@@ -168,6 +417,24 @@ def create_anpr_job(
         if camera and camera.department != scoped_department:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to process this source.")
 
+    source_key = str(source.id)
+
+    if payload.continuous:
+        # Toggle-ON should be idempotent: if this source already has a
+        # live continuous job, hand back that same job instead of
+        # spawning a second one — two jobs racing on one source would
+        # double CPU cost and stomp on each other's overlay-cache writes.
+        with _job_stop_events_lock:
+            existing_job_id = _source_continuous_jobs.get(source_key)
+        if existing_job_id is not None:
+            existing = db.query(AnprJob).filter(AnprJob.id == existing_job_id).first()
+            if existing and existing.status == JobStatusEnum.RUNNING:
+                return existing
+            # Row says RUNNING died without cleaning up its own entry
+            # (process crash mid-job) — fall through and start a fresh one.
+            with _job_stop_events_lock:
+                _source_continuous_jobs.pop(source_key, None)
+
     job = AnprJob(
         id=uuid.uuid4(),
         source_id=source.id,
@@ -179,13 +446,83 @@ def create_anpr_job(
     db.refresh(job)
 
     frame_skip = payload.frame_skip or ANPR_FRAME_SKIP_DEFAULT
+
+    stop_event: Optional[threading.Event] = None
+    if payload.continuous:
+        stop_event = threading.Event()
+        with _job_stop_events_lock:
+            _job_stop_events[str(job.id)] = stop_event
+            _source_continuous_jobs[source_key] = job.id
+
+    # Continuous jobs still carry the safety cap the person requested (or
+    # the default), just not as the intended stop condition — stop_event
+    # is what's meant to end the job. If someone genuinely wants
+    # "unbounded", they can pass a large max_frames alongside continuous.
     thread = threading.Thread(
         target=_run_anpr_job,
-        args=(job.id, source.source_url, source.camera_id, frame_skip, payload.max_frames),
+        args=(job.id, source.id, source.source_url, source.camera_id, frame_skip, payload.max_frames, stop_event),
         daemon=True,
     )
     thread.start()
 
+    return job
+
+
+@router.post("/jobs/{job_id}/stop", response_model=AnprJobOut)
+def stop_anpr_job(
+    job_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Signals a running CONTINUOUS job to stop. Only continuous jobs are
+    stoppable this way — a one-shot batch job has no registered stop
+    event (it's not in _job_stop_events) and just runs to completion on
+    its own, so this 404s for those rather than silently doing nothing."""
+    job = db.query(AnprJob).filter(AnprJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found.")
+
+    scoped_department = department_scope(current_user)
+    if scoped_department is not None:
+        camera = db.query(CameraRef).filter(CameraRef.id == job.camera_id).first()
+        if camera and camera.department != scoped_department:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to stop this job.")
+
+    with _job_stop_events_lock:
+        stop_event = _job_stop_events.get(str(job_id))
+
+    if stop_event is None:
+        if job.status == JobStatusEnum.RUNNING:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This job isn't stoppable — it's a one-shot batch job, not a continuous one.",
+            )
+        # Already finished one way or another — stopping it is a no-op,
+        # not an error (toggling "off" twice shouldn't fail).
+        return job
+
+    stop_event.set()
+    db.refresh(job)
+    return job
+
+
+@router.get("/sources/{source_id}/active-job", response_model=Optional[AnprJobOut])
+def get_active_continuous_job(
+    source_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lets the frontend recover 'is the live overlay currently on for
+    this source' after a page refresh, without having to remember a
+    job_id client-side — the toggle button's on/off state can just be
+    derived from whether this returns a job or null."""
+    with _job_stop_events_lock:
+        job_id = _source_continuous_jobs.get(str(source_id))
+    if job_id is None:
+        return None
+    job = db.query(AnprJob).filter(AnprJob.id == job_id).first()
+    if job is None or job.status != JobStatusEnum.RUNNING:
+        return None
     return job
 
 

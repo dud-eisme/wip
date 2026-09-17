@@ -1,7 +1,17 @@
 .app-shell {
   display: grid;
   grid-template-rows: 56px 1fr;
-  height: 100vh;
+  /* % instead of vh deliberately: on mobile/tablet/kiosk browsers, 100vh
+     is notorious for NOT matching the actual visible viewport — it can
+     include space the browser's own chrome (address bar, nav bar, or
+     whatever a kiosk WebView wraps around the page) is covering, so the
+     page renders taller than what's visible, with the excess genuinely
+     unreachable by scroll rather than just hidden behind an invisible
+     scrollbar. html/body/#root already form a height:100% chain
+     (tokens.css) tied to the browser's real rendered box, so matching
+     that here sidesteps the vh inconsistency entirely instead of
+     fighting it. */
+  height: 100%;
 }
 
 .topbar {
@@ -50,11 +60,58 @@
 }
 
 .main-area {
-  overflow-y: auto;
+  /* "scroll" instead of "auto": always reserves and renders the
+     scrollbar track, even if content doesn't currently overflow. This
+     is deliberate — if no bar shows up even with this, the CSS itself
+     isn't reaching the browser (stale build, wrong file path), which is
+     a different problem than an overflow/content-height issue. */
+  overflow-y: scroll;
+  /* Without this, a grid row defaults to min-height: auto — it refuses
+     to shrink below its content's natural height, so once the table
+     grows taller than the 1fr row would otherwise be, the row just
+     stretches to fit everything instead of the overflow-y above ever
+     kicking in. This is what makes the scrollbar never appear. */
+  min-height: 0;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+
+  /* Explicit touch-scroll hints — some touchscreen/kiosk WebViews are
+     conservative about which regions they treat as pannable unless
+     told directly, rather than inferring it purely from overflow-y.
+     pan-y: only vertical panning is this element's job (no horizontal
+     drag-to-scroll competing with it). -webkit-overflow-scrolling:
+     touch enables inertial/momentum scrolling on WebKit-based WebViews
+     that don't do it by default for a custom overflow container. */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+
+  /* Force a persistent, visible scrollbar instead of relying on the
+     OS/browser's overlay-scrollbar behavior (macOS and some Windows/
+     Chrome setups only paint a scrollbar while actively scrolling,
+     which is invisible in a screenshot and easy to mistake for "there
+     is no scrollbar" even when scrolling itself works fine). */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--border-strong) var(--surface-sunken); /* Firefox */
+}
+
+.main-area::-webkit-scrollbar {
+  width: 10px;
+}
+
+.main-area::-webkit-scrollbar-track {
+  background: var(--surface-sunken);
+}
+
+.main-area::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+}
+
+.main-area::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-soft);
 }
 
 .section-title {

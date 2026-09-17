@@ -133,9 +133,134 @@ a general-purpose object detector (trained on COCO classes like "car",
 "person") — it does NOT know what a license plate looks like. It's
 wired in so you can prove the pipeline runs end-to-end (video → detect →
 crop → OCR → save to DB) without any extra setup. For actual plate
-detection accuracy, download or train YOLO weights on a license-plate
-dataset and point `ANPR_YOLO_WEIGHTS` at that `.pt` file — no code
-change needed, just swap the file.
+detection accuracy, download open weights fine-tuned on a license-plate
+dataset (e.g. `keremberke/yolov8n-license-plate` from Hugging Face) or
+train your own on an Indian-plate dataset, and point `ANPR_YOLO_WEIGHTS`
+at that `.pt` file — no code change needed, just swap the file.
+
+### 6a. ANPR environment variables
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `ANPR_YOLO_WEIGHTS` | `yolov8n.pt` | Path/name of the YOLO checkpoint `ultralytics.YOLO(...)` loads. Swap to a real plate-detector `.pt` file for actual accuracy. |
+| `ANPR_OCR_BACKEND` | `easyocr` | `easyocr` or `paddleocr`. Both are open-source OCR engines that read the text out of a cropped plate. PaddleOCR tends to be more reliable on small, high-contrast plate crops than EasyOCR (which is tuned for general scene text) — worth switching to if plate reads look noisy. |
+| `ANPR_VALIDATE_INDIAN_FORMAT` | `true` | When true, OCR output is checked against a regex for standard Indian plate formats (e.g. `MH12AB1234`) before being logged as a detection — cheaply filters out a lot of OCR garbage regardless of detector/OCR choice. Set `false` to log everything OCR returns (useful while debugging a new detector). |
+| `ANPR_MIN_DETECTION_CONFIDENCE` | `0.4` | Detector confidence threshold — a box below this is discarded before it ever reaches OCR. Was previously a hardcoded function default; now tunable without a code change. |
+| `ANPR_CROP_PADDING_RATIO` | `0.15` | Expands every detected box by this fraction of its width/height before cropping. A too-tight box clips the first/last character off — no OCR quality fixes that after the fact. |
+| `ANPR_OCR_UPSCALE_TARGET_HEIGHT` | `64` | Crops shorter than this (in px) are upscaled toward it before OCR. CCTV plate crops are often 30-60px tall — well under what OCR engines expect — so this puts the crop back in a legible size range. |
+| `ANPR_PLATE_ASPECT_MIN` / `ANPR_PLATE_ASPECT_MAX` | `0.8` / `6.0` | Sanity-checks a detected box's width/height ratio before spending an OCR call on it. A box far outside this range (e.g. a chunk of bumper, a whole vehicle) is almost always a detector false-positive, not something OCR could have salvaged. |
+| `ANPR_OCR_ALLOWLIST` | `ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789` | Restricts EasyOCR's output to exactly the plate character set — cuts down on stray punctuation/lowercase misreads from a model trained on general scene text. (No PaddleOCR equivalent; filtering still happens via the existing alnum-only cleanup step either way.) |
+| `ANPR_CORRECT_OCR_CONFUSIONS` | `true` | If a raw OCR read fails the Indian-plate regex, tries single-character swaps of classic OCR lookalikes (`0/O`, `1/I`, `8/B`, `5/S`, ...) and keeps the first swap that validates, instead of discarding an otherwise-correct read over one bad glyph. |
+| `ANPR_OCR_GPU` | `false` | Each crop is now tried against two preprocessed variants (see below), roughly doubling OCR calls per frame. Set `true` if a CUDA GPU is available so this doesn't cost frame throughput. |
+| `ANPR_DEBUG_OCR` | `false` | Logs every raw OCR read (text, confidence, crop size, bbox) at DEBUG level, **before** the format filter drops anything. Turn this on any time detections look wrong — it tells you immediately whether OCR read close (one bad character, silently discarded) or read garbage (a crop/detector problem, not an OCR-engine problem). See §6c for a faster way to use this than watching the real app's logs. |
+
+Every crop is now tried through two preprocessed variants before OCR —
+an upscaled/contrast-enhanced grayscale version, and an Otsu-binarized
+version of that — keeping whichever gave the higher-confidence read. No
+single preprocessing wins on every CCTV plate (glare, blur, and exposure
+vary too much frame to frame), so this is on unconditionally rather than
+behind its own toggle.
+
+If you switch `ANPR_OCR_BACKEND` to `paddleocr`, install its deps instead
+of/alongside easyocr's:
+
+```cmd
+pip install paddlepaddle==2.6.1 paddleocr==2.7.3
+```
+
+### 6b. Indian_LPR integration (FCOS detector + LPRNet OCR)
+
+`sanchit2843/Indian_LPR`'s detector (FCOS+HRNet) and OCR (LPRNet) are
+**not** Ultralytics/EasyOCR-compatible, so they can't be dropped into
+`ANPR_YOLO_WEIGHTS`/`ANPR_OCR_BACKEND=easyocr|paddleocr` as weight
+files. Instead they're vendored as two separate backends, each behind
+its own `is_available()` check so the rest of the app keeps working
+(and `/api/v2/anpr/jobs` returns a clean 503, not a crash) if their
+extra deps or weights aren't present:
+
+**Detector** — `ANPR_DETECTOR_BACKEND=indian_lpr_fcos`
+```cmd
+pip install torch torchvision pyyaml
+set ANPR_DETECTOR_BACKEND=indian_lpr_fcos
+set ANPR_FCOS_WEIGHTS=path\to\best_od.pth
+```
+`indian_lpr_fcos/fcos.py`, `fpn.py`, `head.py`, `loss.py`, `config.py`,
+and now `backbone/hrnet.py` are vendored (verbatim, with one fix — see
+below); `indian_lpr_fcos/detector.py` is the adapter that makes them
+speak `anpr_pipeline.py`'s `detect_plate_boxes()`/`is_available()`
+interface. This backend is now complete: `hrnetv2()`'s forward pass
+returns 4 feature maps at 16/32/64/128 channels (stage4's four branches
+under `hrnet18v1.yaml`'s config), which line up exactly with
+`fpn.py`'s `prj_2..prj_5` (16/32/64/128 → `features`) — confirmed by
+walking the channel math through all four stages, not just assumed.
+`pip install pyyaml` because `backbone/hrnet.py` imports `yaml` at
+module load time (only actually used by its own `__main__` smoke test,
+but the import isn't guarded).
+
+> **One fix applied:** `backbone/hrnet.py` originally called
+> `np.int(...)` on an unused intermediate (`last_inp_channels`) — `np.int`
+> was removed in numpy>=1.24, so this would crash model construction the
+> moment `hrnetv2()` is instantiated on any current numpy. Changed to
+> plain `int(...)`; behavior is identical, the crash is gone.
+
+**OCR** — `ANPR_OCR_BACKEND=lprnet`
+```cmd
+pip install torch
+set ANPR_OCR_BACKEND=lprnet
+set ANPR_LPRNET_WEIGHTS=path\to\best_lprnet.pth
+```
+`lprnet_ocr/model.py` is `LPRNet.py` vendored verbatim; `lprnet_ocr/reader.py`
+is the adapter — preprocessing (94×24 resize, the same
+`(img - 127.5) * 0.0078125` normalization) and CTC greedy decoding
+mirror `data/load_data.py`/`test_LPRNet.py` exactly, since accuracy
+depends on matching what the weights were trained on. This is fully
+working, no missing pieces, and plugs into the same
+crop→OCR→Indian-format-validation flow as `easyocr`/`paddleocr` — only
+`ANPR_OCR_BACKEND` changes. Note: unlike the `easyocr`/`paddleocr`
+backends, `lprnet` crops are deliberately NOT run through the
+upscale/CLAHE/denoise preprocessing described in §6a — this reader
+already applies its own fixed preprocessing that its weights were
+trained against, and changing that risks moving input off-distribution.
+The bbox padding (`ANPR_CROP_PADDING_RATIO`) still applies here the same
+as any other backend, since it happens before cropping, not as part of
+OCR preprocessing.
+
+Both backends can be mixed independently with the Ultralytics/EasyOCR
+ones — e.g. `ANPR_DETECTOR_BACKEND=yolo` (real plate weights) with
+`ANPR_OCR_BACKEND=lprnet`, or `indian_lpr_fcos` detection with
+`easyocr` reading. Nothing in `anpr_pipeline.py`'s crop/validate step
+depends on which pair you pick.
+
+### 6c. Debugging accuracy on a specific clip
+
+`test_anpr_clip.py` (project root) runs `anpr_pipeline.py` against a
+single video file/URL directly — no FastAPI, no Postgres, no job/worker
+threading — and prints every read straight to the console. Use it to
+iterate on the `ANPR_*` env vars above fast, instead of going through
+`POST /api/v2/anpr/jobs` → poll → `GET /api/v2/anpr/events` every time:
+
+```cmd
+venv\Scripts\activate
+python test_anpr_clip.py path\to\clip.mp4
+python test_anpr_clip.py path\to\clip.mp4 --frame-skip 3 --max-frames 200
+python test_anpr_clip.py path\to\clip.mp4 --show-all --save-crops out\crops
+python test_anpr_clip.py path\to\clip.mp4 --ocr-backend paddleocr
+```
+
+- `--show-all` bypasses `ANPR_VALIDATE_INDIAN_FORMAT` for that run only,
+  so every OCR read is printed — including ones that fail the
+  plate-format regex. Tells you "read close but got filtered" apart
+  from "read garbage", which need very different fixes.
+- `--save-crops DIR` saves the crop region for every logged read to
+  disk, named by frame/plate/bbox — open a few before doubting the OCR
+  engine; if the crop itself is illegible, no OCR backend will help.
+- `ANPR_DEBUG_OCR` is force-enabled for every run of this script
+  regardless of your `.env`, so the raw-read debug lines from §6a always
+  show, even for reads that end up filtered out of the summary.
+- Any other `ANPR_*` var already set in your `.env`/shell (weights path,
+  detector backend, etc.) is picked up exactly as the real app would use
+  it — `--detector-backend`/`--ocr-backend` just let you override those
+  two for a single run without editing `.env` back and forth.
 
 ---
 
@@ -192,6 +317,8 @@ camera_worker.py          CameraWorker (per-source thread) + SourceManager
 storage.py                  Snapshot file storage — path layout, save/resolve,
                              path-traversal guard, disk usage stats
 anpr_pipeline.py             Lazy-loaded YOLO + EasyOCR, frame-level detection
+test_anpr_clip.py             Standalone CLI: run the ANPR pipeline against one
+                                clip and print every read — see §6c
 routers/sources.py            Register/list/update/delete sources, start/stop
                              workers, worker status
 routers/stream.py            MJPEG live relay + single-frame snapshot

@@ -77,6 +77,32 @@ export async function createSource(token, { cameraId, sourceName, sourceType, so
   return data
 }
 
+// NOTE: API_BASE already includes '/api/v2' (see const above) — every
+// other function in this file calls `${API_BASE}/sources/...`, not
+// `${API_BASE}/api/v2/sources/...`. An earlier version of this function
+// doubled the prefix, which 404'd against no matching route (FastAPI's
+// generic "Not Found", not the backend's "Source not found." — those are
+// two different failures; only the latter means the row is actually
+// missing from Postgres).
+export async function deleteSource(token, sourceId) {
+  if (USE_MOCK) {
+    await simulateLatency()
+    const idx = mockSources.findIndex((s) => s.id === sourceId)
+    if (idx !== -1) mockSources.splice(idx, 1)
+    delete mockWorkerStatus[sourceId]
+    return true
+  }
+  const res = await fetch(`${API_BASE}/sources/${sourceId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  })
+  if (!res.ok && res.status !== 204) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `Failed to delete source (${res.status})`)
+  }
+  return true
+}
+
 // ---------------------------------------------------------------------------
 // Worker control (start/stop the background decoder for a source)
 // ---------------------------------------------------------------------------
@@ -143,6 +169,9 @@ export function buildStreamUrl(sourceId, token) {
 // completing instantly - this is what actually exercises the frontend's
 // polling loop when USE_MOCK is on.
 const mockJobStartTimes = {}
+// USE_MOCK equivalent of the backend's _source_continuous_jobs — lets the
+// mock path support the same "toggle overlay on/off per source" flow.
+const mockActiveContinuousJobs = {}
 
 export async function createAnprJob(token, sourceId) {
   if (USE_MOCK) {
@@ -159,6 +188,59 @@ export async function createAnprJob(token, sourceId) {
   const data = await res.json()
   if (!res.ok) throw new Error(data.detail || 'Failed to start ANPR job')
   return data
+}
+
+// Starts (or, if one's already live for this source, just returns) a
+// LONG-RUNNING ANPR job that keeps publishing detection boxes to the live
+// overlay until explicitly stopped — this is what backs a simple "ANPR
+// overlay on/off" toggle button, as opposed to createAnprJob's one-shot
+// batch run that stops itself at max_frames.
+export async function startContinuousAnprJob(token, sourceId) {
+  if (USE_MOCK) {
+    await simulateLatency()
+    const existing = mockActiveContinuousJobs[sourceId]
+    if (existing) return existing
+    const job = { id: `live-job-${Date.now()}`, source_id: sourceId, status: 'running', processed_frames: 0, events_found: 0 }
+    mockActiveContinuousJobs[sourceId] = job
+    return job
+  }
+  const res = await fetch(`${API_BASE}/anpr/jobs`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_id: sourceId, continuous: true }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.detail || 'Failed to start ANPR overlay')
+  return data
+}
+
+export async function stopAnprJob(token, jobId) {
+  if (USE_MOCK) {
+    await simulateLatency()
+    for (const [sourceId, job] of Object.entries(mockActiveContinuousJobs)) {
+      if (job.id === jobId) delete mockActiveContinuousJobs[sourceId]
+    }
+    return true
+  }
+  const res = await fetch(`${API_BASE}/anpr/jobs/${jobId}/stop`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  })
+  if (!res.ok) throw new Error('Failed to stop ANPR overlay')
+  return res.json()
+}
+
+// Lets the toggle button recover its on/off state after a page refresh —
+// returns the live job for this source, or null if the overlay isn't
+// currently running there. Call this once when a source's tile mounts.
+export async function getActiveAnprJob(token, sourceId) {
+  if (USE_MOCK) {
+    await simulateLatency()
+    return mockActiveContinuousJobs[sourceId] || null
+  }
+  const res = await fetch(`${API_BASE}/anpr/sources/${sourceId}/active-job`, { headers: authHeaders(token) })
+  if (!res.ok) throw new Error('Failed to fetch ANPR overlay status')
+  return res.json()
 }
 
 export async function getAnprJob(token, jobId) {

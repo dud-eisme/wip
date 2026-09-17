@@ -28,41 +28,15 @@ project-root/
 │   └── WORKFLOW_INTEGRATION_DIAGRAM.svg  (Data flow & integration)
 ├── SECURITY.md                   (TLS, auth, rate limiting, audit logging)
 ├── INFRASTRUCTURE.md             (Sizing, tuning, monitoring, backup)
-├── ROADMAP.md                    (4-phase technical roadmap Q1-Q4 2026+)
 ├── CCTV_STREAMING_BEST_PRACTICES.md  (All 11 do's & don'ts implemented)
-├── .env.example                  (Complete configuration template)
 └── start-all.sh                  (Starts all six processes together)
 ```
 
----
 
-## 📊 Architecture & Documentation
-
-### High-Level Architecture Diagram
-**📄 [`docs/ARCHITECTURE_DIAGRAM.svg`](docs/ARCHITECTURE_DIAGRAM.svg)**
-
-Visual overview of the three-model architecture:
-- Model 1, Model 2, Model 3 component breakdown
-- Inter-model data flow connections
-- Architecture principles (open, modular, scalable, secure, standards-based)
-- Streaming best practices implementation
-- Deployment & operations summary
-
-### Workflow & Integration Diagram
-**📄 [`docs/WORKFLOW_INTEGRATION_DIAGRAM.svg`](docs/WORKFLOW_INTEGRATION_DIAGRAM.svg)**
-
-End-to-end data flow and integration:
-- **Section 1**: Authentication & onboarding (manual, bulk CSV, vendor API)
-- **Section 2**: Live feed & ANPR pipeline (camera workers, frame decode, YOLO/OCR)
-- **Section 3**: VMS Federation & correlation (adapter pattern, filtering)
-- **Section 4**: Error handling & monitoring (backoff, audit logs, metrics)
-
----
-
-## 📚 Comprehensive Documentation
+## Comprehensive Documentation
 
 ### Security & Hardening
-**📄 [`SECURITY.md`](SECURITY.md)**
+** [`SECURITY.md`](SECURITY.md)**
 
 Complete security architecture covering:
 - TLS/HTTPS configuration for all backends
@@ -74,7 +48,7 @@ Complete security architecture covering:
 - Production deployment hardening checklist (nginx, database security, monitoring alerts)
 
 ### Infrastructure Sizing & Operations
-**📄 [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)**
+** [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)**
 
 Complete operational guide:
 - **Hardware requirements**: 7–8 cores, 14–16 GB RAM, ~560 GB storage for full deployment
@@ -86,7 +60,7 @@ Complete operational guide:
 - **Disaster recovery**: Automated backups, point-in-time recovery procedure
 
 ### Technical Roadmap
-**📄 [`ROADMAP.md`](ROADMAP.md)**
+** [`ROADMAP.md`](ROADMAP.md)**
 
 Four-phase development roadmap:
 - **Phase 1 (Q1 2026)**: Infrastructure & security hardening ✓
@@ -97,24 +71,24 @@ Four-phase development roadmap:
 - **API stability guarantees**: v1 frozen after Q2, 6-month deprecation period for breaking changes
 
 ### CCTV Streaming Best Practices
-**📄 [`CCTV_STREAMING_BEST_PRACTICES.md`](CCTV_STREAMING_BEST_PRACTICES.md)**
+** [`CCTV_STREAMING_BEST_PRACTICES.md`](CCTV_STREAMING_BEST_PRACTICES.md)**
 
 All 11 critical streaming do's and don'ts with implementations:
 - ✅ **DO** — Force RTSP over TCP (TCP configured, HLS fallback documented)
-- ✅ **DON'T** — Trust reported frame rate (PTS-based timing, actual rate measurement)
+- ❌ **DON'T** — Trust reported frame rate (PTS-based timing, actual rate measurement)
 - ✅ **DO** — Drive timing from PTS (CAP_PROP_POS_MSEC, not arrival time)
-- ✅ **DON'T** — Assume constant frame rate (gap tolerance, actual PTS delta for motion models)
+- ❌ **DON'T** — Assume constant frame rate (gap tolerance, actual PTS delta for motion models)
 - ✅ **DO** — Reconnect with backoff (exponential 2s–30s)
-- ✅ **DON'T** — Treat decode warnings as fatal (error tolerance, continues on transient failures)
-- ✅ **DON'T** — Assume uniform grid (per-camera properties, adaptive batch sizing)
+- ❌ **DON'T** — Treat decode warnings as fatal (error tolerance, continues on transient failures)
+- ❌ **DON'T** — Assume uniform grid (per-camera properties, adaptive batch sizing)
 - ✅ **DO** — Expect scene discontinuity (PTS cut detection, state recovery)
-- ✅ **DON'T** — Plan on file download (live streaming only, no file download API)
-- ✅ **DON'T** — Publish to gateway (read-only consumer, no control API calls)
+- ❌ **DON'T** — Plan on file download (live streaming only, no file download API)
+- ❌ **DON'T** — Publish to gateway (read-only consumer, no control API calls)
 - ✅ **DO** — Pace your load (MAX_CONCURRENT_SOURCES enforced, default 50)
 
 ---
 
-## Model 1 — CCTV Registry & GIS Foundation
+## [Model 1](/model1/README.md) — CCTV Registry & GIS Foundation
 
 ### What it does
 A centralized inventory of every CCTV camera across departments — Police,
@@ -153,7 +127,7 @@ authentication identity.
 Computed live from PostGIS queries, not pre-aggregated:
 - **Ageing infrastructure** — cameras older than a configurable threshold
   (default 5 years) or currently flagged for maintenance
-- **Coverage density clustering** — `ST_ClusterDBSCAN` groups
+- **Coverage density clustering** — `ST_ClusterDBSCAN` *(extern-package)* groups
   geographically close cameras to identify redundant coverage
 - **Dead-zone detection** — the camera set's bounding box is divided into
   a configurable grid; cells with zero cameras are flagged as coverage gaps
@@ -194,17 +168,15 @@ GET    /api/v1/analytics/gap-analysis
 GET    /health                         (system health check)
 ```
 
-**👉 See [`model1/README.md`](model1/README.md) for frontend setup & development.**
-
 ---
 
-## Model 2 — Live Feed Relay & ANPR
+## [Model 2](/model2/README.md) — Live Feed Relay & ANPR
 
 ### What it does
-Connects directly to each camera's `stream_endpoint` (RTSP/HTTP/local
-file), relays the live feed as MJPEG for viewing, and runs a plate
-detection + OCR pipeline against a source or recorded clip — logging
-results to a searchable events table. No middleware layer, no
+Connects directly to each camera's `stream_endpoint` (RTSP/HLS/HTTP/local
+file), relays the live feed as MJPEG for viewing, and runs an [auto 
+plate detection](<https://github.com/sanchit2843/Indian_LPR>) + OCR pipeline against a source or recorded clip —
+logging results to a searchable events table. No middleware layer, no
 intermediate video storage; existing departmental VMS systems are
 untouched, matching the model's defined scope.
 
@@ -213,8 +185,8 @@ Deliberately connects to the **same PostgreSQL database** as Model 1 —
 not a separate one. It reads Model 1's `users` table directly for login
 (no separate registration system: log in via Model 1, use that token
 here) and foreign-keys its own tables against Model 1's `cameras` table.
-This means **Model 1's `DATABASE_URL` and `SECRET_KEY` must match Model
-2's exactly**, or login tokens issued by Model 1 will be rejected here.
+This means **Model 1's `DATABASE_URL` and `JWT_PUBLIC_KEY` must match 
+Model 2's exactly**, or login tokens issued by Model 1 will be rejected here.
 
 ### Data model (new tables, owned by Model 2)
 - **`camera_sources`** — links a Model 1 camera to an actual playable
@@ -242,6 +214,26 @@ test starting 50 concurrent workers, verifying all stayed alive and
 capturing, and that a 51st is correctly rejected rather than silently
 allowed.
 
+### Protocol choice: RTSP vs. HLS
+`camera_sources.source_type` can be `rtsp`, `hls`, `http`, or `file`. RTSP
+is a live push stream with no application-level retransmission for the
+media itself — under packet loss/jitter, H.264 has no error concealment,
+so ffmpeg fills in garbage macroblocks until the next keyframe
+(`frame_quality.py` detects and rejects these via a blockiness heuristic
+so viewers/ANPR see the last good frame instead of a smear, but that's a
+detect-and-reject fix, not a prevention of the underlying corruption).
+HLS delivers the same content as segments over HTTP/TCP: a late segment
+just makes the download slower, it can never hand the decoder a
+half-corrupted bitstream — so it avoids the corruption mechanism
+entirely, at the cost of several seconds of segment-buffering latency
+that RTSP doesn't have. That tradeoff (no corruption, higher latency)
+is a non-issue for a human-viewed relay or for ANPR, so **HLS is the
+recommended `source_type` for any camera on a link that isn't rock
+solid**; RTSP remains available for sources where near-real-time
+latency genuinely matters. Both protocols are opened via the same
+`cv2.VideoCapture(source_url)` call in `camera_worker.py` — ffmpeg
+auto-detects the transport from the URL scheme.
+
 ### ANPR pipeline
 Plate detection via YOLO, text extraction via EasyOCR. Both are heavy
 dependencies (YOLO pulls in PyTorch) and are **lazily imported** — the
@@ -253,19 +245,17 @@ if they're missing.
 default weights (`yolov8n.pt`) are a general-purpose object detector
 (COCO classes like "car", "person") — they do **not** actually recognize
 license plates. They're wired in to prove the full pipeline runs
-end-to-end (capture → detect → crop → OCR → save). Real plate-detection
-accuracy requires swapping in YOLO weights fine-tuned on a license-plate
-dataset — a config change (`ANPR_YOLO_WEIGHTS`), not a code change.
+end-to-end (capture → detect → crop → OCR → save). Here, we have used the
+license plate detection trained model based on YOLOv8 from [Koushim](<https://huggingface.co/Koushim/yolov8-license-plate-detection>)
 
 ### Detection snapshots
 Each detected plate's cropped image is saved to disk, organized by
 camera then date (`media/anpr_snapshots/<camera_id>/<date>/<event_id>.jpg`)
 so files can be browsed directly without a database lookup, and no single
 folder ever accumulates enough files to slow down listing. The database
-stores only a **relative** path, so moving the deployment to a different
-machine never silently breaks existing records. Snapshots are served
-through an authenticated endpoint (not a raw static file mount), so the
-same department-scoped access rules apply to images as to everything
+stores only a **relative** path. Snapshots are served through an 
+authenticated endpoint (not a raw static file mount), so the same 
+department-scoped access rules apply to images as to everything
 else, with a path-traversal guard against a malformed stored path.
 
 ### The `<img>`-tag authentication fix
@@ -279,9 +269,8 @@ be `<img>`-loadable — everywhere else keeps strict header-only auth.
 
 ### Frontend
 A video wall (one tile per registered source) with per-source Start/Stop
-controls for its capture worker and a "Run ANPR" trigger, a source
-registration flow (pick a real camera from Model 1's live registry, supply
-its stream URL), and a searchable/flaggable events table.
+controls for its capture worker and a "Start ANPR" trigger, which runs the
+ANPR system, and displays detected plates, records them into the database.
 
 ### Key endpoints
 ```
@@ -300,18 +289,15 @@ PATCH  /api/v2/anpr/events/{id}/flag
 GET    /health                            (system health check)
 ```
 
-**👉 See [`model2/README.md`](model2/README.md) for frontend setup & development.**
-
 ---
 
-## Model 3 — VMS Federation & Middleware
+## [Model 3](/model3/README.md) — VMS Federation & Middleware
 
 ### What it does
-Owns no data of its own. Its entire job is calling Model 1's and Model
-2's real APIs live, correlating the results, and exposing one unified
-endpoint — the middleware/federation layer the problem statement
-describes, built as a genuine adapter pattern rather than a single
-hard-coded integration.
+Its entire job is calling Model 1's and Model 2's real APIs live,
+correlating the results, and exposing one unified endpoint — the 
+middleware/federation layer the problem statement describes, built
+as a genuine adapter pattern rather than a single hard-coded integration.
 
 ### The adapter pattern
 A common `VMSAdapter` interface (`get_cameras()` / `get_events()`) with
@@ -333,11 +319,11 @@ directly, this same cached token authenticates to Model 2 as well — no
 second login flow needed.
 
 ### Graceful degradation
-If Model 2 is unreachable, `ViewerAdapter` reports that honestly (`status:
-"error"` with the underlying error message) and the correlation engine
-continues with whatever data it does have — one dead upstream system
-doesn't break the whole federation. This means Model 3 is fully testable
-against Model 1 alone, before Model 2 is even running.
+If Model 2 is unreachable, `ViewerAdapter` reports that (`status: "error"`
+with the underlying error message) and the correlation engine continues
+with whatever data it does have — one dead upstream system doesn't break
+the whole federation. This means Model 3 is fully testable against Model 1
+alone, before Model 2 is even running.
 
 ### The actual correlation logic
 This is the concrete value Model 3 adds beyond two separate dashboards.
@@ -354,8 +340,7 @@ derived:
 | Unrecognized / unknown camera | medium *(not "high" — no evidence of health shouldn't imply confidence)* |
 
 An ANPR hit from a camera Model 1 already knows is offline or defective is
-therefore flagged lower-confidence automatically, without any manual
-review step.
+therefore flagged lower-confidence automatically.
 
 ### Analytics summary
 A "federated analytics report" combining total correlated events, a
@@ -377,30 +362,7 @@ GET /api/v1/federated/analytics
 GET /health                        (system health check)
 ```
 
-**👉 See [`model3/README.md`](model3/README.md) for frontend setup & development.**
-
 ---
-
-## How the three models actually connect
-
-```
-Department CCTV Assets
-        │  onboarding (manual / bulk / vendor API)
-        ▼
-┌─────────────────┐        stream_endpoint         ┌─────────────────┐
-│     MODEL 1      │ ───────────────────────────▶  │     MODEL 2      │
-│  Registry & GIS   │                                │  Feed Relay &     │
-│  PostgreSQL+PostGIS│◀── same DB, same SECRET_KEY ──│  ANPR             │
-└─────────┬─────────┘                                └─────────┬─────────┘
-          │ GET /cameras                                        │ GET /anpr/events
-          │ (service-account JWT)                                │ (same JWT)
-          ▼                                                      ▼
-                    ┌───────────────────────────┐
-                    │         MODEL 3            │
-                    │  Federation & Middleware     │
-                    │  Correlation Engine           │
-                    └───────────────────────────┘
-```
 
 Three concrete alignment requirements, all config rather than code:
 1. **Model 1 ↔ Model 2**: identical `DATABASE_URL` and `SECRET_KEY`
@@ -436,7 +398,7 @@ setup has already been done once per model.
 
 ---
 
-## 🔐 Security Hardening (All Backends)
+## Security Hardening (All Backends)
 
 All three backends are secured with:
 
@@ -451,22 +413,7 @@ All three backends are secured with:
 
 ---
 
-## 📦 Configuration Template
-
-**📄 [`.env.example`](.env.example)**
-
-Copy to `.env` and fill in your values. Includes:
-- Database connection (PostgreSQL with PostGIS)
-- Shared authentication (SECRET_KEY, JWT expiry)
-- Model-specific settings (RTSP transport, frame rate, ANPR weights)
-- Security (TLS paths, rate limit settings, CORS origins)
-- Audit logging paths
-
-Never commit `.env` — it contains secrets.
-
----
-
-## Known limitations (stated honestly, not hidden)
+## Known limitations
 
 - **Model 1**: camera edit/delete UI ✓ done; real login screen ✓ done.
   Remaining: no password reset flow; editing a camera's GIS location isn't
@@ -477,6 +424,11 @@ Never commit `.env` — it contains secrets.
   not a task queue, so there's no retry/queueing at production scale.
   Snapshot retention ✓ has a standalone cleanup script now
   (`cleanup_snapshots.py`, run manually/via cron, never auto-runs).
+  RTSP frame corruption on lossy links ✓ has a recommended fix now
+  (`source_type='hls'` — see "Protocol choice: RTSP vs. HLS" above);
+  the blockiness-based frame_quality.py check remains as a detect-and-
+  reject fallback for sources still on RTSP, but it's a heuristic with
+  known false-positive/false-negative cases, not a calibrated certainty.
 - **Model 3**: auth failures now surface specific, actionable error
   messages (connection vs. wrong credentials vs. malformed response) and
   a startup check flags an unconfigured/placeholder service account
@@ -490,21 +442,6 @@ Never commit `.env` — it contains secrets.
 
 ---
 
-## 🎯 Challenge Solutions Summary
-
-All 12 hackathon challenges solved:
-
-| Challenge | Solution | Documentation |
-|-----------|----------|-----------------|
-| **Overall Architecture** | Three-model hybrid design | README, ARCHITECTURE_DIAGRAM.svg |
-| **AI & Video Analytics** | YOLO+EasyOCR ANPR pipeline | Model 2 section, ROADMAP.md |
-| **Integration Strategy** | Adapter pattern federation | Model 3 section, WORKFLOW_INTEGRATION_DIAGRAM.svg |
-| **Deployment Architecture** | Multi-node capable, load-balanced | INFRASTRUCTURE.md |
-| **Cost-Benefit Analysis** | Per-camera resource costs documented | INFRASTRUCTURE.md |
-| **Scalability Strategy** | 50-source stress tested | Model 2 section, INFRASTRUCTURE.md |
-| **Department-wise Information Requirements** | RBAC + department filtering | SECURITY.md, all model sections |
-| **Cybersecurity Architecture** | TLS, rate limiting, audit logging | SECURITY.md |
-| **Infrastructure Sizing** | Hardware requirements + tuning | INFRASTRUCTURE.md |
-| **Future Roadmap** | 4-phase Q1-Q4 2026+ | ROADMAP.md |
-| **Streaming Best Practices** | All 11 do's & don'ts implemented | CCTV_STREAMING_BEST_PRACTICES.md |
-| **Architecture Diagrams** | High-level + workflow visuals | ARCHITECTURE_DIAGRAM.svg, WORKFLOW_INTEGRATION_DIAGRAM.svg |
+## Credits
+- [@sanchit2843](<https://github.com/sanchit2843/Indian_LPR>) for their ANPR engine implemented into this project.
+- [@Koushim](<https://huggingface.co/Koushim/yolov8-license-plate-detection>) for their trained model for license plates, based on YOLOv8.

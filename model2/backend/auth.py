@@ -24,8 +24,24 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User, UserRoleEnum, DepartmentEnum
 
+# NOTE: despite the name, this holds a SYMMETRIC secret, not an RS256
+# public key — Model 1 signs tokens with HS256, so both sides need the
+# exact SAME value here. Set JWT_PUBLIC_KEY in this service's .env to
+# whatever Model 1's signing secret actually is — check Model 1's own
+# .env/auth code for the variable it uses there; it doesn't have to be
+# named JWT_PUBLIC_KEY on that side too, only the VALUE has to match.
 JWT_PUBLIC_KEY = os.getenv("JWT_PUBLIC_KEY", "insecure-dev-key-change-me")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
+
+if JWT_PUBLIC_KEY == "insecure-dev-key-change-me":
+    import logging
+
+    logging.getLogger("cctv_model2.auth").warning(
+        "JWT_PUBLIC_KEY is unset — using the placeholder default. Every "
+        "token issued by Model 1 will fail validation here with a 401 "
+        "until JWT_PUBLIC_KEY in this service's .env is set to Model 1's "
+        "actual signing secret."
+    )
 
 # tokenUrl points at Model 1's login endpoint purely so Swagger's "Authorize"
 # button knows where to send a password grant — Model 2 doesn't host it.

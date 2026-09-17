@@ -1,8 +1,12 @@
 // Model 2 has no login of its own — it validates Model 1's JWT directly
 // (same SECRET_KEY, same users table). So this frontend logs in against
 // Model 1 and reuses that one token for every Model 2 API call too.
-
-const MODEL1_API_BASE = import.meta.env.VITE_MODEL1_API_BASE || 'http://localhost:8000/api/v1'
+//
+// Hardcoded rather than read from .env: Model 1 always runs on :8000 per
+// the README ("Model 1 typically runs on :8000 — use :8001 here so both
+// can run at once"), so this only needs to change if that convention
+// changes on your machine.
+const MODEL1_API_BASE = 'http://localhost:8000/api/v1'
 
 export async function login(email, password) {
   const body = new URLSearchParams()

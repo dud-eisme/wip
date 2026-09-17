@@ -100,6 +100,10 @@ class CameraRef(Base):
 
 class SourceTypeEnum(str, enum.Enum):
     RTSP = "rtsp"
+    HLS = "hls"  # .m3u8 over HTTP(S) — see camera_worker.py module docstring for
+                 # why this is the recommended alternative to RTSP on lossy links:
+                 # TCP-delivered segments can't produce the macroblock corruption
+                 # RTSP's UDP/push delivery can, at the cost of higher latency.
     HTTP = "http"
     FILE = "file"  # recorded clip, used for ANPR testing/demo without a live feed
 
