@@ -36,7 +36,7 @@ project-root/
 ## Comprehensive Documentation
 
 ### Security & Hardening
-** [`SECURITY.md`](SECURITY.md)**
+**[`SECURITY.md`](SECURITY.md)**
 
 Complete security architecture covering:
 - TLS/HTTPS configuration for all backends
@@ -48,7 +48,7 @@ Complete security architecture covering:
 - Production deployment hardening checklist (nginx, database security, monitoring alerts)
 
 ### Infrastructure Sizing & Operations
-** [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)**
+**[`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)**
 
 Complete operational guide:
 - **Hardware requirements**: 7–8 cores, 14–16 GB RAM, ~560 GB storage for full deployment
@@ -60,7 +60,7 @@ Complete operational guide:
 - **Disaster recovery**: Automated backups, point-in-time recovery procedure
 
 ### Technical Roadmap
-** [`ROADMAP.md`](ROADMAP.md)**
+**[`ROADMAP.md`](ROADMAP.md)**
 
 Four-phase development roadmap:
 - **Phase 1 (Q1 2026)**: Infrastructure & security hardening ✓
@@ -71,7 +71,7 @@ Four-phase development roadmap:
 - **API stability guarantees**: v1 frozen after Q2, 6-month deprecation period for breaking changes
 
 ### CCTV Streaming Best Practices
-** [`CCTV_STREAMING_BEST_PRACTICES.md`](CCTV_STREAMING_BEST_PRACTICES.md)**
+**[`CCTV_STREAMING_BEST_PRACTICES.md`](CCTV_STREAMING_BEST_PRACTICES.md)**
 
 All 11 critical streaming do's and don'ts with implementations:
 - ✅ **DO** — Force RTSP over TCP (TCP configured, HLS fallback documented)

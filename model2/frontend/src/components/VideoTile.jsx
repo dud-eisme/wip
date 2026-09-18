@@ -10,6 +10,8 @@ import {
   deleteSource,
 } from '../api/viewer'
 import ConfirmDialog from './ConfirmDialog'
+import EditSourceModal from './EditSourceModal'
+import WebRTCPlayer from './WebRTCPlayer'
 
 const POLL_INTERVAL_MS = 2000
 // Statuses that mean the continuous job has ended on its own (source ran
@@ -18,19 +20,32 @@ const POLL_INTERVAL_MS = 2000
 // local state without waiting on one more poll.
 const TERMINAL_STATUSES = ['completed', 'failed']
 
-export default function VideoTile({ source, workerStatus, token, onWorkerChange, onDelete }) {
+export default function VideoTile({ source, workerStatus, token, onWorkerChange, onDelete, onSourceUpdate }) {
   const [busy, setBusy] = useState(false)
   const [anprBusy, setAnprBusy] = useState(false)
   const [job, setJob] = useState(null) // { id, status, processed_frames, events_found } while the overlay is live
   const pollTimerRef = useRef(null)
 
+  // 'mjpeg'  = server relay. Higher latency, but ANPR boxes are burned in
+  //            server-side, and it works through our auth.
+  // 'webrtc' = direct low-latency playback via source.webrtc_url. No ANPR
+  //            boxes (the frontend never sees detections for this path —
+  //            see overlay.py's docstring, which only wires the relay/
+  //            snapshot paths), and it bypasses our token auth entirely
+  //            since it's played directly off whatever the WHEP endpoint
+  //            allows — only offered when the source actually has one.
+  const [playbackMode, setPlaybackMode] = useState('mjpeg')
+
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
 
+  const [isEditing, setIsEditing] = useState(false)
+
   const isRunning = workerStatus?.is_running ?? false
   const lastError = workerStatus?.last_error
   const anprOn = job !== null && !TERMINAL_STATUSES.includes(job.status)
+  const hasWebrtc = Boolean(source.webrtc_url)
 
   // On mount (and whenever the source/token changes), recover whether a
   // continuous ANPR job is already live for this source — e.g. after a
@@ -56,6 +71,13 @@ export default function VideoTile({ source, workerStatus, token, onWorkerChange,
   useEffect(() => {
     return () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current) }
   }, [])
+
+  // If the WebRTC playback mode is active but a source edit just removed
+  // the webrtc_url, fall back to the relay view rather than leaving the
+  // tile pointed at a dead <WebRTCPlayer url={undefined}>.
+  useEffect(() => {
+    if (!hasWebrtc && playbackMode === 'webrtc') setPlaybackMode('mjpeg')
+  }, [hasWebrtc, playbackMode])
 
   function pollContinuousJob(jobId) {
     getAnprJob(token, jobId)
@@ -149,10 +171,15 @@ export default function VideoTile({ source, workerStatus, token, onWorkerChange,
     }
   }
 
+  const showWebrtc = playbackMode === 'webrtc' && hasWebrtc
+  const showMjpeg = !showWebrtc && isRunning
+
   return (
     <div className="video-tile-wrapper">
-      <div className={`video-tile ${!isRunning ? 'video-tile__offline' : ''}`}>
-        {isRunning ? (
+      <div className={`video-tile ${!showWebrtc && !isRunning ? 'video-tile__offline' : ''}`}>
+        {showWebrtc ? (
+          <WebRTCPlayer url={source.webrtc_url} label={source.source_name} />
+        ) : showMjpeg ? (
           // Token passed as a query param here specifically because a plain
           // <img> tag cannot send an Authorization header — see the
           // buildStreamUrl comment in api/viewer.js. Detection boxes (while
@@ -167,11 +194,11 @@ export default function VideoTile({ source, workerStatus, token, onWorkerChange,
 
         <div className="video-tile__label">
           <span>
-            <span className={`video-tile__status-dot video-tile__status-dot--${isRunning ? 'online' : 'offline'}`} />
+            <span className={`video-tile__status-dot video-tile__status-dot--${showWebrtc || isRunning ? 'online' : 'offline'}`} />
             {source.source_name}
           </span>
           <span style={{ opacity: 0.7, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-            {source.source_type}
+            {showWebrtc ? 'webrtc' : source.source_type}
           </span>
         </div>
       </div>
@@ -182,6 +209,21 @@ export default function VideoTile({ source, workerStatus, token, onWorkerChange,
         ) : (
           <button className="btn btn--small btn--primary" onClick={handleStart} disabled={busy}>Start</button>
         )}
+
+        {hasWebrtc && (
+          <button
+            className="btn btn--small"
+            onClick={() => setPlaybackMode((m) => (m === 'webrtc' ? 'mjpeg' : 'webrtc'))}
+            title={
+              showWebrtc
+                ? 'Switch back to the server relay (higher latency, shows ANPR boxes)'
+                : 'Switch to direct WebRTC playback (low latency, no ANPR boxes)'
+            }
+          >
+            {showWebrtc ? 'Relay view' : 'Low latency'}
+          </button>
+        )}
+
         <button
           className={`btn btn--small ${anprOn ? 'btn--primary' : ''}`}
           onClick={handleToggleAnpr}
@@ -189,6 +231,7 @@ export default function VideoTile({ source, workerStatus, token, onWorkerChange,
         >
           {anprOn ? 'Stop ANPR' : 'Start ANPR'}
         </button>
+
         {job && (
           <span className={`job-status-chip job-status-chip--${anprOn ? 'running' : job.status}`}>
             {anprOn
@@ -196,16 +239,36 @@ export default function VideoTile({ source, workerStatus, token, onWorkerChange,
               : job.status}
           </span>
         )}
+
+        <button
+          className="btn btn--small"
+          onClick={() => setIsEditing(true)}
+          disabled={busy || anprBusy}
+          title="Edit this source"
+          style={{ marginLeft: 'auto' }}
+        >
+          Edit
+        </button>
+
         <button
           className="btn btn--small"
           onClick={() => setConfirmingDelete(true)}
           disabled={busy || anprBusy}
           title="Delete this source"
-          style={{ marginLeft: 'auto', color: '#dc2626', borderColor: '#dc2626' }}
+          style={{ color: '#dc2626', borderColor: '#dc2626' }}
         >
           Delete
         </button>
       </div>
+
+      {isEditing && (
+        <EditSourceModal
+          token={token}
+          source={source}
+          onClose={() => setIsEditing(false)}
+          onSuccess={(updatedSource) => onSourceUpdate(updatedSource)}
+        />
+      )}
 
       {confirmingDelete && (
         <ConfirmDialog

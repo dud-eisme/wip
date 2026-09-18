@@ -26,6 +26,9 @@ from database import create_all_tables
 from camera_worker import source_manager
 from routers import sources, stream, anpr
 import storage
+import vehicle_pipeline
+import anpr_lowres
+import vahan
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cctv_model2")
@@ -152,11 +155,26 @@ async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded)
 
 @app.get("/health", tags=["System"])
 def health_check():
+    vehicle_available, vehicle_reason = vehicle_pipeline.dependency_status()
+    vahan_configured, vahan_reason = vahan.is_configured()
     return {
         "status": "ok",
         "active_camera_workers": source_manager.active_count(),
         "max_concurrent_sources": source_manager.max_concurrent_sources,
         "snapshot_storage": storage.storage_stats(),
+        "vehicle_recognition": {
+            "enabled": vehicle_pipeline.VEHICLE_RECOGNITION_ENABLED,
+            "make_model_backend": vehicle_pipeline.VEHICLE_MAKE_BACKEND,
+            "dependencies_available": vehicle_available,
+            "dependency_error": vehicle_reason,
+        },
+        "vehicle_registry": {
+            "policy": vahan.VAHAN_LOOKUP_POLICY,
+            "configured": vahan_configured,
+            "configuration_error": vahan_reason,
+            "cache": vahan.cache_stats(),
+        },
+        "low_res_tooling": anpr_lowres.status(),
     }
 
 

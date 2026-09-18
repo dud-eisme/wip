@@ -56,6 +56,7 @@ def register_source(
         source_name=payload.source_name,
         source_type=payload.source_type,
         source_url=payload.source_url,
+        webrtc_url=payload.webrtc_url,
         is_active=payload.is_active,
     )
     db.add(source)

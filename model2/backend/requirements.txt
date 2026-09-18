@@ -1,5 +1,6 @@
 # --- Core backend (same stack as Model 1) ---
 fastapi==0.115.0
+slowapi
 uvicorn[standard]==0.30.6
 SQLAlchemy==2.0.35
 psycopg2-binary>=2.9.9
@@ -27,3 +28,5 @@ numpy>=1.26.4
 #   pip install ultralytics==8.3.0 easyocr==1.7.2
 #
 # ultralytics pulls in torch automatically.
+ultralytics==8.3.0
+easyocr==1.7.2

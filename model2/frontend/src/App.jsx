@@ -71,6 +71,13 @@ export default function App() {
     setWorkerStatuses((prev) => ({ ...prev, [sourceId]: status }))
   }
 
+  // Patches a single source in place after a successful edit — avoids a
+  // full sources refetch (and the tile-remount/flicker that would cause)
+  // for what's usually just a name or URL tweak.
+  function handleSourceUpdate(updatedSource) {
+    setSources((prev) => prev.map((s) => (s.id === updatedSource.id ? updatedSource : s)))
+  }
+
   // --- Events (debounced search) ---
   useEffect(() => {
     const timerId = setTimeout(() => setDebounced(searchInput), 300)
@@ -141,6 +148,7 @@ export default function App() {
               token={token}
               onWorkerChange={handleWorkerChange}
               onDelete={(sourceId) => setSources((prev) => prev.filter((s) => s.id !== sourceId))}
+              onSourceUpdate={handleSourceUpdate}
             />
           </>
         )}

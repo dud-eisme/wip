@@ -1,6 +1,6 @@
 import VideoTile from './VideoTile'
 
-export default function VideoWall({ sources, workerStatuses, token, onWorkerChange, onDelete }) {
+export default function VideoWall({ sources, workerStatuses, token, onWorkerChange, onDelete, onSourceUpdate }) {
   if (sources.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 }}>
@@ -19,6 +19,7 @@ export default function VideoWall({ sources, workerStatuses, token, onWorkerChan
           token={token}
           onWorkerChange={onWorkerChange}
           onDelete={onDelete}
+          onSourceUpdate={onSourceUpdate}
         />
       ))}
     </div>

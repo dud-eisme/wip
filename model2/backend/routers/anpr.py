@@ -36,7 +36,11 @@ from auth import get_current_user, department_scope
 from overlay import latest_detections, OverlayDetection
 from camera_worker import source_manager
 import anpr_pipeline
+import vehicle_pipeline
+import plate_consensus
+import vahan
 import storage
+from collections import deque
 
 router = APIRouter(prefix="/api/v2/anpr", tags=["ANPR"])
 logger = logging.getLogger("cctv_model2.anpr")
@@ -49,12 +53,25 @@ ANPR_FRAME_SKIP_DEFAULT = int(os.getenv("ANPR_FRAME_SKIP", "5"))
 # controls actual capture rate.
 ANPR_RTSP_POLL_INTERVAL_SECONDS = float(os.getenv("ANPR_RTSP_POLL_INTERVAL_SECONDS", "0.05"))
 
-# A vehicle that dwells in frame is re-detected on every processed frame.
-# At frame_skip=5 on 25fps video that's ~5 identical rows per second for
-# one car. Within this window, a repeat read of the same plate updates
-# the existing event (keeping the best-confidence snapshot) instead of
-# inserting a new one. Set to 0 to log every raw detection.
+# SUPERSEDED by plate_consensus.PlateTracker below. This used to
+# de-duplicate repeat single-frame reads of a dwelling vehicle by picking
+# whichever read had the higher confidence and discarding the rest.
+# PlateTracker does the same job better: it tracks the same vehicle
+# across frames the same way, but VOTES across every read instead of
+# keeping one and throwing the others away, which is what actually helps
+# on low-resolution footage (see plate_consensus.py's module docstring).
+# Left here, unused, only so ANPR_DEDUP_WINDOW_SECONDS in an existing
+# .env doesn't become an unrecognised-var surprise; it does nothing now.
 ANPR_DEDUP_WINDOW_SECONDS = float(os.getenv("ANPR_DEDUP_WINDOW_SECONDS", "15"))
+
+# How many PAST PROCESSED frames to keep decoded in memory per job, so a
+# track that closes can still reach back to its best-confidence frame for
+# vehicle recognition + the snapshot crop. Must comfortably exceed
+# CONSENSUS_TRACK_TIMEOUT_FRAMES (processed-frame units, same as it) or a
+# track would close and find its own best frame already evicted.
+ANPR_FRAME_BUFFER_SIZE = int(
+    os.getenv("ANPR_FRAME_BUFFER_SIZE", str(plate_consensus.CONSENSUS_TRACK_TIMEOUT_FRAMES + 20))
+)
 
 # Registry of stop signals for currently-running jobs, keyed by job_id.
 # Mirrors SourceManager's _workers dict in camera_worker.py — same need,
@@ -74,7 +91,11 @@ _source_continuous_jobs: dict[str, uuid.UUID] = {}
 
 
 def _plates_match(a: str, b: str) -> bool:
-    """True if two plate reads are the same plate. Exact match, or a
+    """LEGACY — no longer called from the job loop; PlateTracker's own
+    _hamming-distance match (plate_consensus.py) replaced this. Left
+    defined in case anything else in the codebase still imports it.
+
+    True if two plate reads are the same plate. Exact match, or a
     single-character difference — OCR jitter on a dwelling vehicle
     typically flips one ambiguous glyph (8/B, 0/O, 1/I) between frames,
     and treating those as distinct plates defeats the whole point of
@@ -153,6 +174,104 @@ def _iter_rtsp_worker_frames(source_id: uuid.UUID, stop_event: Optional[threadin
             time.sleep(ANPR_RTSP_POLL_INTERVAL_SECONDS)
 
 
+def _write_consensus_event(
+    db: Session,
+    job_id: uuid.UUID,
+    camera_id: Optional[uuid.UUID],
+    source_id: uuid.UUID,
+    frame_buffer: dict,
+    result: "plate_consensus.ConsensusPlate",
+) -> "AnprEvent":
+    """
+    Turns one CLOSED track (a vehicle's whole pass through frame, voted
+    across every read — see plate_consensus.py) into one AnprEvent row.
+
+    Vehicle detection is run ONCE here, on the single best frame of the
+    track, rather than every processed frame — the frame with the
+    highest-confidence plate read is also usually the frame where the
+    vehicle itself is most cleanly in view, and running it once per
+    track instead of once per frame is most of the reason this is
+    affordable at all.
+
+    Never raises: vehicle recognition and the registry hook are both
+    enrichments layered on top of a plate read that's already decided.
+    A crash in either must not cost the plate event itself.
+    """
+    snapshot_frame = frame_buffer.get(result.best_frame)
+
+    vehicle_type = vehicle_type_conf = None
+    vehicle_colour = vehicle_colour_conf = None
+    vehicle_make = vehicle_model = vehicle_mm_conf = vehicle_mm_source = None
+    vehicle_bbox_str = None
+    crop_source_frame = snapshot_frame
+    crop_bbox = result.best_bbox
+
+    if snapshot_frame is not None:
+        try:
+            vehicles = vehicle_pipeline.detect_vehicles_in_frame(snapshot_frame)
+            plate_stub = anpr_pipeline.PlateDetection(
+                plate_text=result.plate_text, confidence=result.confidence, bbox=result.best_bbox,
+            )
+            vehicles = vehicle_pipeline.attach_plates(vehicles, [plate_stub])
+            matched = next((v for v in vehicles if v.plate_text == result.plate_text), None)
+            if matched is not None:
+                vehicle_type, vehicle_type_conf = matched.vehicle_type, matched.type_confidence
+                vehicle_colour, vehicle_colour_conf = matched.colour, matched.colour_confidence
+                vehicle_make, vehicle_model = matched.make, matched.model
+                vehicle_mm_conf, vehicle_mm_source = matched.make_model_confidence, matched.make_model_source
+                vehicle_bbox_str = ",".join(str(v) for v in matched.bbox)
+                # Prefer cropping the SNAPSHOT around the whole vehicle
+                # rather than just the plate — much more useful for a
+                # human reviewing a flagged event later.
+                crop_bbox = matched.bbox
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Vehicle recognition failed for track closing on plate %s — event still recorded",
+                result.plate_text,
+            )
+
+    snapshot_path = None
+    if crop_source_frame is not None:
+        x1, y1, x2, y2 = crop_bbox
+        crop = crop_source_frame[y1:y2, x1:x2]
+        if crop.size > 0:
+            event_id = uuid.uuid4()
+            relpath = storage.build_snapshot_relpath(camera_id, event_id)
+            try:
+                snapshot_path = storage.save_snapshot(relpath, crop)
+            except Exception:
+                snapshot_path = None
+        else:
+            event_id = uuid.uuid4()
+    else:
+        event_id = uuid.uuid4()
+
+    event = AnprEvent(
+        id=event_id,
+        job_id=job_id,
+        camera_id=camera_id,
+        source_id=source_id,
+        plate_text=result.plate_text,
+        confidence=result.confidence,
+        frame_number=result.best_frame,
+        snapshot_path=snapshot_path,
+        vehicle_type=vehicle_type,
+        vehicle_type_confidence=vehicle_type_conf,
+        vehicle_colour=vehicle_colour,
+        vehicle_colour_confidence=vehicle_colour_conf,
+        vehicle_make=vehicle_make,
+        vehicle_model=vehicle_model,
+        vehicle_make_model_confidence=vehicle_mm_conf,
+        vehicle_make_model_source=vehicle_mm_source,
+        vehicle_bbox=vehicle_bbox_str,
+        consensus_read_count=result.read_count,
+        consensus_agreement=result.agreement,
+        consensus_alternatives=",".join(result.alternatives) if result.alternatives else None,
+    )
+    db.add(event)
+    return event
+
+
 def _iter_file_frames(cap: "cv2.VideoCapture"):
     """Plain cap.read()-per-frame wrapper for FILE/HTTP sources. Not a
     push source, so a failed read here is a genuine end-of-clip — nothing
@@ -220,9 +339,22 @@ def _run_anpr_job(
         frame_number = 0
         processed = 0
         events_found = 0
-        # plate_text -> (monotonic timestamp, the AnprEvent row it created)
-        recent_plates: dict = {}
         stopped_by_request = False
+
+        # Tracks plates across frames and votes per character instead of
+        # trusting any single frame's OCR read — see plate_consensus.py.
+        # One tracker per job: two jobs on different cameras must never
+        # share track state.
+        tracker = plate_consensus.PlateTracker()
+
+        # frame_number -> decoded frame, bounded to the last
+        # ANPR_FRAME_BUFFER_SIZE PROCESSED frames. A closing track needs
+        # to reach back to its best-confidence frame for the snapshot
+        # crop and vehicle recognition; without this bound, a continuous
+        # job (which can run for hours) would hold every frame it ever
+        # decoded in memory.
+        frame_buffer: "deque" = deque(maxlen=ANPR_FRAME_BUFFER_SIZE)
+        frame_buffer_index: dict = {}
 
         try:
             # stop_event is only set for continuous jobs (see AnprJobCreate.
@@ -255,6 +387,17 @@ def _run_anpr_job(
                 detections = anpr_pipeline.detect_plates_in_frame(frame)
                 processed += 1
 
+                # Keep this frame reachable for whichever track ends up
+                # closing on it. The deque evicts the oldest entry once
+                # full; mirror that eviction into the lookup dict so the
+                # two never drift apart and frame_buffer_index doesn't
+                # grow unbounded over a long continuous job.
+                if len(frame_buffer) == frame_buffer.maxlen and frame_buffer:
+                    evicted_frame_number, _ = frame_buffer[0]
+                    frame_buffer_index.pop(evicted_frame_number, None)
+                frame_buffer.append((frame_number, frame))
+                frame_buffer_index[frame_number] = frame
+
                 # Hand the results to the MJPEG relay (routers/stream.py).
                 # Published unconditionally, including the empty list: an
                 # empty set is what makes boxes disappear the moment a
@@ -274,69 +417,35 @@ def _run_anpr_job(
                     frame_size=(frame_w, frame_h),
                 )
 
-                now = time.monotonic()
-                for det in detections:
-                    # --- de-duplication -------------------------------
-                    if ANPR_DEDUP_WINDOW_SECONDS > 0:
-                        recent_key = None
-                        for seen_plate, (seen_at, _) in recent_plates.items():
-                            if now - seen_at > ANPR_DEDUP_WINDOW_SECONDS:
-                                continue
-                            if _plates_match(det.plate_text, seen_plate):
-                                recent_key = seen_plate
-                                break
-
-                        if recent_key is not None:
-                            seen_at, seen_event = recent_plates[recent_key]
-                            # Refresh the window so a car that dwells for
-                            # a minute stays one event, not one per window.
-                            recent_plates[recent_key] = (now, seen_event)
-                            # Keep the best read: if this pass was more
-                            # confident, promote its text/confidence onto
-                            # the existing row rather than discarding it.
-                            if det.confidence > (seen_event.confidence or 0):
-                                seen_event.plate_text = det.plate_text
-                                seen_event.confidence = det.confidence
-                            continue
-
-                    event_id = uuid.uuid4()
-                    snapshot_path = None
-                    x1, y1, x2, y2 = det.bbox
-                    crop = frame[y1:y2, x1:x2]
-                    if crop.size > 0:
-                        relpath = storage.build_snapshot_relpath(camera_id, event_id)
-                        try:
-                            snapshot_path = storage.save_snapshot(relpath, crop)
-                        except Exception:
-                            snapshot_path = None  # detection still gets logged even if the disk write fails
-
-                    event = AnprEvent(
-                        id=event_id,
-                        job_id=job_id,
-                        camera_id=camera_id,
-                        source_id=job.source_id,
-                        plate_text=det.plate_text,
-                        confidence=det.confidence,
-                        frame_number=frame_number,
-                        snapshot_path=snapshot_path,
+                # Feed this frame's raw reads into the tracker. Nothing
+                # is written to the DB yet — a track only becomes an
+                # event once it CLOSES (the vehicle leaves frame, or the
+                # track goes stale), because voting across every read
+                # needs to see all of them first. See plate_consensus.py.
+                for closed_track in tracker.update(frame_number, detections):
+                    _write_consensus_event(
+                        db, job_id, camera_id, job.source_id, frame_buffer_index, closed_track,
                     )
-                    db.add(event)
                     events_found += 1
-                    if ANPR_DEDUP_WINDOW_SECONDS > 0:
-                        recent_plates[det.plate_text] = (now, event)
-                        # Bound the map on a long job — anything past the
-                        # window can never match again.
-                        if len(recent_plates) > 256:
-                            recent_plates = {
-                                k: v
-                                for k, v in recent_plates.items()
-                                if now - v[0] <= ANPR_DEDUP_WINDOW_SECONDS
-                            }
 
                 job.processed_frames = processed
                 job.events_found = events_found
                 db.commit()
         finally:
+            # Any vehicle still mid-frame when the loop ends (source
+            # exhausted, stop requested, max_frames hit) would otherwise
+            # never produce an event — flush() closes every open track
+            # on whatever it's seen so far. This runs whether the loop
+            # exited cleanly or via the outer except below, same as the
+            # cap.release() it sits alongside.
+            for closed_track in tracker.flush():
+                _write_consensus_event(
+                    db, job_id, camera_id, job.source_id, frame_buffer_index, closed_track,
+                )
+                events_found += 1
+            job.processed_frames = processed
+            job.events_found = events_found
+            db.commit()
             if cap is not None:
                 cap.release()
 
@@ -406,6 +515,13 @@ def create_anpr_job(
                 f"(underlying error: {reason})"
             ),
         )
+    # Vehicle recognition is NOT gated here the same way: it's an
+    # enrichment on top of an already-accepted plate read (see
+    # _write_consensus_event's try/except), so a missing torch/CLIP
+    # install degrades to plate-only events instead of blocking ANPR
+    # entirely. Check vehicle_pipeline.dependency_status() /
+    # vahan.is_configured() via GET /health if vehicle fields are coming
+    # back empty and that's unexpected.
 
     source = db.query(CameraSource).filter(CameraSource.id == payload.source_id).first()
     if not source:
@@ -551,6 +667,13 @@ def search_events(
     from_time: Optional[datetime] = Query(None, alias="from"),
     to_time: Optional[datetime] = Query(None, alias="to"),
     is_flagged: Optional[bool] = Query(None),
+    vehicle_type: Optional[str] = Query(None, description="e.g. car, motorcycle, truck, bus."),
+    vehicle_colour: Optional[str] = Query(None),
+    vehicle_make: Optional[str] = Query(None, description="Partial match, case-insensitive."),
+    min_consensus_agreement: Optional[float] = Query(
+        None, ge=0, le=1,
+        description="Only events whose weakest per-character agreement is at least this — filters out doubtful reads.",
+    ),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
@@ -571,6 +694,14 @@ def search_events(
         query = query.filter(AnprEvent.detected_at <= to_time)
     if is_flagged is not None:
         query = query.filter(AnprEvent.is_flagged == is_flagged)
+    if vehicle_type:
+        query = query.filter(AnprEvent.vehicle_type == vehicle_type)
+    if vehicle_colour:
+        query = query.filter(AnprEvent.vehicle_colour == vehicle_colour)
+    if vehicle_make:
+        query = query.filter(AnprEvent.vehicle_make.ilike(f"%{vehicle_make}%"))
+    if min_consensus_agreement is not None:
+        query = query.filter(AnprEvent.consensus_agreement >= min_consensus_agreement)
 
     total = query.count()
     rows = query.order_by(AnprEvent.detected_at.desc()).offset(offset).limit(limit).all()
@@ -626,6 +757,88 @@ def flag_event(
 
     event.is_flagged = payload.is_flagged
     event.flagged_note = payload.flagged_note
+
+    # Registry lookups are deliberately NOT run on every plate the
+    # cameras see (see vahan.py's module docstring on cost and PII) —
+    # flagging an event as "of interest" is the moment a human has
+    # decided this specific vehicle is worth the call.
+    if payload.is_flagged and vahan.should_look_up(is_flagged=True):
+        _apply_registry_lookup(event)
+
     db.commit()
     db.refresh(event)
+    return event
+
+
+def _apply_registry_lookup(event: "AnprEvent", force: bool = False) -> bool:
+    """Looks event.plate_text up against the registry and, if found,
+    overwrites the vehicle_make/model/colour fields with it — a
+    registry answer is ground truth, a vision answer is a guess, and
+    vehicle_make_model_source records which one ended up on the row.
+    Logs (does not block on) any disagreement between what vision saw
+    and what's registered, since that mismatch is itself useful.
+    Returns True if a registry record was found and applied."""
+    try:
+        record = vahan.lookup(event.plate_text, force=force)
+    except Exception:  # noqa: BLE001 — the event must be saveable either way
+        logger.exception("Registry lookup failed for plate %s", event.plate_text)
+        return False
+    if record is None:
+        return False
+
+    if event.vehicle_make and record.make and event.vehicle_make.lower() != record.make.lower():
+        logger.warning(
+            "Registry/vision mismatch for plate %s: vision saw %s %s, registry says %s %s",
+            event.plate_text, event.vehicle_make, event.vehicle_model or "",
+            record.make, record.model or "",
+        )
+
+    if record.make:
+        event.vehicle_make = record.make
+        event.vehicle_model = record.model or event.vehicle_model
+        event.vehicle_make_model_confidence = 1.0
+        event.vehicle_make_model_source = "registry"
+    if record.colour and not event.vehicle_colour:
+        event.vehicle_colour = record.colour
+    return True
+
+
+@router.post("/events/{event_id}/lookup-registry", response_model=AnprEventOut)
+def lookup_registry_for_event(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Explicit 'look this one up' action, independent of
+    VAHAN_LOOKUP_POLICY — for a reviewer who wants the registry answer
+    for a specific event regardless of the automatic flagged-only
+    default. Still respects VAHAN_LOOKUP_POLICY='none' (registry
+    disabled outright) since that's a deployment-level switch, not a
+    per-event one."""
+    event = db.query(AnprEvent).filter(AnprEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+
+    scoped_department = department_scope(current_user)
+    if scoped_department is not None:
+        camera = db.query(CameraRef).filter(CameraRef.id == event.camera_id).first()
+        if camera and camera.department != scoped_department:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to look up this event.")
+
+    configured, reason = vahan.is_configured()
+    if not configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Vehicle registry is not configured: {reason}",
+        )
+
+    found = _apply_registry_lookup(event, force=True)
+    db.commit()
+    db.refresh(event)
+    if not found:
+        # Not an error — the plate may genuinely not be registered, or
+        # OCR's read may not be a real plate. 200 with unchanged vehicle
+        # fields tells the reviewer "we checked and nothing came back",
+        # distinct from a 404/503 which would mean we didn't check at all.
+        logger.info("Registry lookup for %s returned no record", event.plate_text)
     return event

@@ -44,7 +44,7 @@ export async function getSources(token) {
   return data.items
 }
 
-export async function createSource(token, { cameraId, sourceName, sourceType, sourceUrl }) {
+export async function createSource(token, { cameraId, sourceName, sourceType, sourceUrl, webrtcUrl = null }) {
   if (USE_MOCK) {
     await simulateLatency()
     const newSource = {
@@ -53,6 +53,7 @@ export async function createSource(token, { cameraId, sourceName, sourceType, so
       source_name: sourceName,
       source_type: sourceType,
       source_url: sourceUrl,
+      webrtc_url: webrtcUrl,
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -69,11 +70,50 @@ export async function createSource(token, { cameraId, sourceName, sourceType, so
       source_name: sourceName,
       source_type: sourceType,
       source_url: sourceUrl,
+      webrtc_url: webrtcUrl,
       is_active: true,
     }),
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : 'Failed to register source')
+  return data
+}
+
+// Partial update of an existing source. Matches schemas.CameraSourceUpdate
+// on the backend, which only allows changing source_name, source_url,
+// webrtc_url, and is_active — camera_id and source_type are NOT editable
+// (re-pointing a source at a different camera or changing its ingest
+// protocol isn't supported by this endpoint; register a new source for
+// that instead). Only send fields the caller actually provided so a
+// partial edit doesn't accidentally null out fields it didn't touch.
+export async function updateSource(token, sourceId, { sourceName, sourceUrl, webrtcUrl, isActive } = {}) {
+  const body = {}
+  if (sourceName !== undefined) body.source_name = sourceName
+  if (sourceUrl !== undefined) body.source_url = sourceUrl
+  if (webrtcUrl !== undefined) body.webrtc_url = webrtcUrl
+  if (isActive !== undefined) body.is_active = isActive
+
+  if (USE_MOCK) {
+    await simulateLatency()
+    const source = mockSources.find((s) => s.id === sourceId)
+    if (!source) throw new Error('Source not found')
+    Object.assign(source, {
+      ...(sourceName !== undefined ? { source_name: sourceName } : {}),
+      ...(sourceUrl !== undefined ? { source_url: sourceUrl } : {}),
+      ...(webrtcUrl !== undefined ? { webrtc_url: webrtcUrl } : {}),
+      ...(isActive !== undefined ? { is_active: isActive } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    return source
+  }
+
+  const res = await fetch(`${API_BASE}/sources/${sourceId}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : 'Failed to update source')
   return data
 }
 

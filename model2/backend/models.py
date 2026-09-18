@@ -100,10 +100,6 @@ class CameraRef(Base):
 
 class SourceTypeEnum(str, enum.Enum):
     RTSP = "rtsp"
-    HLS = "hls"  # .m3u8 over HTTP(S) — see camera_worker.py module docstring for
-                 # why this is the recommended alternative to RTSP on lossy links:
-                 # TCP-delivered segments can't produce the macroblock corruption
-                 # RTSP's UDP/push delivery can, at the cost of higher latency.
     HTTP = "http"
     FILE = "file"  # recorded clip, used for ANPR testing/demo without a live feed
 
@@ -126,6 +122,21 @@ class CameraSource(Base):
         nullable=False,
     )
     source_url = Column(String, nullable=False)  # rtsp://..., http://..., or local file path
+
+    # OPTIONAL low-latency browser-preview URL (WHEP endpoint), e.g.
+    # http://<host>:8889/stream/<id>/whep
+    #
+    # This is deliberately a SECOND url on the same source rather than its
+    # own source_type. WebRTC cannot be ingested server-side: OpenCV/ffmpeg
+    # can't consume a WHEP endpoint (it needs an SDP offer/answer exchange
+    # then SRTP/ICE), so a webrtc-only source could never run a capture
+    # worker or an ANPR job. Keeping it as an extra field means source_url
+    # (rtsp/hls) still drives all server-side work — relay, ANPR, overlay —
+    # while the browser can additionally play webrtc_url directly for
+    # near-zero-latency viewing. The Sentinel catalogue publishes all three
+    # URLs per camera, so both can be filled from one /api/ingest entry.
+    webrtc_url = Column(String, nullable=True)
+
     is_active = Column(Boolean, default=True, nullable=False, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -184,6 +195,47 @@ class AnprEvent(Base):
 
     is_flagged = Column(Boolean, default=False, nullable=False, index=True)  # "of interest"
     flagged_note = Column(Text, nullable=True)
+
+    # -----------------------------------------------------------------
+    # Vehicle recognition (vehicle_pipeline.py). All nullable — "not
+    # determined" is a real, expected answer (see that module's
+    # docstring on why make/model especially are often unknowable from
+    # CCTV footage), not something to backfill with a guess.
+    # -----------------------------------------------------------------
+    vehicle_type = Column(String, nullable=True, index=True)
+    vehicle_type_confidence = Column(Float, nullable=True)
+    vehicle_colour = Column(String, nullable=True, index=True)
+    vehicle_colour_confidence = Column(Float, nullable=True)
+    vehicle_make = Column(String, nullable=True, index=True)
+    vehicle_model = Column(String, nullable=True)
+    vehicle_make_model_confidence = Column(Float, nullable=True)
+    # 'vision' or 'registry' (VAHAN) — kept as plain text rather than a
+    # Postgres enum on purpose: adding an enum value later needs its own
+    # ALTER TYPE migration (see migrate_add_source_type_values.py), and
+    # this field isn't worth that ceremony.
+    vehicle_make_model_source = Column(String, nullable=True)
+    # 'x1,y1,x2,y2' of the whole-vehicle box in the source frame, so a
+    # snapshot can be re-cropped to the full vehicle later without
+    # re-running detection.
+    vehicle_bbox = Column(String, nullable=True)
+
+    # -----------------------------------------------------------------
+    # Multi-frame consensus (plate_consensus.py). This event represents
+    # one TRACK (a vehicle's whole pass through frame), not one single
+    # OCR read — confidence above is the mean of the reads that voted;
+    # these two describe how much to trust that mean.
+    # -----------------------------------------------------------------
+    consensus_read_count = Column(Integer, nullable=True)
+    # Weakest per-character agreement across the plate, 0-1. Two events
+    # with identical `confidence` can have very different
+    # `consensus_agreement` — e.g. "11 reads, every character
+    # unanimous" vs "3 reads, one position split 55/45" — and this is
+    # the field that tells them apart for review.
+    consensus_agreement = Column(Float, nullable=True)
+    # Other whole-string reads seen for this track, most common first,
+    # comma-separated. A human reviewer flagging a doubtful plate wants
+    # to see what else OCR considered, not just the winner.
+    consensus_alternatives = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

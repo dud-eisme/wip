@@ -32,7 +32,26 @@ class CameraSourceCreate(BaseModel):
     source_name: str = Field(min_length=1, max_length=255)
     source_type: SourceTypeEnum
     source_url: str = Field(min_length=1, max_length=1024)
+    webrtc_url: Optional[str] = Field(
+        default=None,
+        max_length=1024,
+        description=(
+            "Optional WHEP endpoint for low-latency browser preview "
+            "(e.g. http://<host>:8889/stream/<id>/whep). Browser-side "
+            "playback only — server-side relay and ANPR always use "
+            "source_url, since WebRTC can't be ingested by OpenCV."
+        ),
+    )
     is_active: bool = True
+
+    @field_validator("webrtc_url")
+    @classmethod
+    def validate_webrtc_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        if not (v.lower().startswith("http://") or v.lower().startswith("https://")):
+            raise ValueError("webrtc_url must be an http:// or https:// WHEP endpoint")
+        return v
 
     @field_validator("source_url")
     @classmethod
@@ -42,22 +61,13 @@ class CameraSourceCreate(BaseModel):
             raise ValueError("source_url must start with rtsp:// for source_type='rtsp'")
         if source_type == SourceTypeEnum.HTTP and not (v.lower().startswith("http://") or v.lower().startswith("https://")):
             raise ValueError("source_url must start with http:// or https:// for source_type='http'")
-        if source_type == SourceTypeEnum.HLS:
-            is_http = v.lower().startswith("http://") or v.lower().startswith("https://")
-            if not is_http:
-                raise ValueError("source_url must start with http:// or https:// for source_type='hls'")
-            # Loose check, not strict — a valid HLS playlist URL can carry a
-            # query string after the extension (?token=..., signed CDN URLs,
-            # etc.), so this only guards against an obviously-wrong URL
-            # (e.g. someone pasting an rtsp:// or a raw .mp4 link here).
-            if ".m3u8" not in v.lower():
-                raise ValueError("source_url should point at an .m3u8 playlist for source_type='hls'")
         return v
 
 
 class CameraSourceUpdate(BaseModel):
     source_name: Optional[str] = None
     source_url: Optional[str] = None
+    webrtc_url: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -69,6 +79,7 @@ class CameraSourceOut(BaseModel):
     source_name: str
     source_type: SourceTypeEnum
     source_url: str
+    webrtc_url: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -143,6 +154,25 @@ class AnprEventOut(BaseModel):
     snapshot_path: Optional[str] = None
     is_flagged: bool
     flagged_note: Optional[str] = None
+
+    # Vehicle recognition — absent means "not determined", not "unknown
+    # error". See vehicle_pipeline.py for why make/model in particular
+    # are often genuinely undeterminable from CCTV footage.
+    vehicle_type: Optional[str] = None
+    vehicle_type_confidence: Optional[float] = None
+    vehicle_colour: Optional[str] = None
+    vehicle_colour_confidence: Optional[float] = None
+    vehicle_make: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    vehicle_make_model_confidence: Optional[float] = None
+    vehicle_make_model_source: Optional[str] = None  # "vision" | "registry"
+    vehicle_bbox: Optional[str] = None
+
+    # Multi-frame consensus — see plate_consensus.py. read_count and
+    # agreement are better review signals than confidence alone.
+    consensus_read_count: Optional[int] = None
+    consensus_agreement: Optional[float] = None
+    consensus_alternatives: Optional[str] = None
 
 
 class AnprEventListResponse(BaseModel):
